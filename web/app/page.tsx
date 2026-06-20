@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Hero } from "@/components/landing/Hero";
 import { TerminalPreview } from "@/components/landing/TerminalPreview";
 
@@ -8,8 +9,17 @@ export default function Home() {
         <Hero />
         <TerminalPreview />
       </main>
-      <footer className="py-lg text-center text-caption-sm text-mute">
-        © 2026 autoreduce
+      <footer className="flex flex-wrap items-center justify-center gap-x-xl gap-y-sm py-lg text-caption-sm text-body">
+        <Link href="/how-it-works" className="hover:text-ink">How it works</Link>
+        <a
+          href="https://github.com/vishruthb/autoreduce"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-ink"
+        >
+          GitHub
+        </a>
+        <span className="text-mute">© 2026 autoreduce</span>
       </footer>
     </div>
   );

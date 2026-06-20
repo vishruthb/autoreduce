@@ -52,10 +52,15 @@ export function TopBar() {
           ) : (
             <div className="flex items-center gap-xl">
               <div className="hidden items-center gap-xl text-body-sm-strong text-ink sm:flex">
-                <a href="https://github.com" className="hover:text-body">
-                  Docs
-                </a>
-                <a href="https://github.com" className="hover:text-body">
+                <Link href="/how-it-works" className="hover:text-body">
+                  How it works
+                </Link>
+                <a
+                  href="https://github.com/vishruthb/autoreduce"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-body"
+                >
                   GitHub
                 </a>
               </div>
