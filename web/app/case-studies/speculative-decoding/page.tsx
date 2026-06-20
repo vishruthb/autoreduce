@@ -26,7 +26,7 @@ const SETUP = [
   ["Benchmark", "sealed serving benchmark"],
   ["Metric", "quality-adjusted throughput speedup"],
   ["Latency guardrail", "p95 <= 250 ms"],
-  ["Baseline", "autoregressive decoding = 1.00x"],
+  ["Baseline", "vLLM continuous batching = 1.00x"],
 ];
 
 const AGENTS = [
@@ -139,7 +139,7 @@ const SUMMARY = [
 ];
 
 const BASELINES = [
-  ["Autoregressive decoding", "1.00x", "baseline", "reference path"],
+  ["vLLM continuous batching", "1.00x", "baseline", "reference path"],
   ["Fixed draft-length batching", "1.04x", "+4%", "simple batching baseline"],
   ["Best one-GPU policy", "1.21x", "+21%", "under p95 guardrail"],
   ["Best scaled policy", "1.31x", "+31%", "best at 4 of 8 GPUs"],
@@ -148,11 +148,11 @@ const BASELINES = [
 const CONTEXT = [
   [
     "Standard decode path",
-    "vLLM/PagedAttention-style autoregressive serving: continuous batching and paged KV cache, but one accepted token still requires a target-model decode step.",
+    "The comparison baseline is vLLM continuous batching with PagedAttention-style KV-cache management. It is a strong serving baseline, but each accepted token still comes from the target model decode path.",
   ],
   [
-    "Published speed context",
-    "Speculative decoding papers report roughly 2x-3x or 2x-2.5x acceleration in their settings. This replay uses a more conservative serving-constrained 1.31x result.",
+    "What the agent changed",
+    "The agent did not replace vLLM. It searched for a scheduling policy around it: acceptance-rate buckets, adaptive draft length, KV-pressure grouping, and GPU bundle choices.",
   ],
 ];
 
@@ -304,8 +304,8 @@ export default function CaseStudiesPage() {
             </p>
             <h2 className="mt-sm text-display-lg text-ink">What did it beat?</h2>
             <p className="mt-md text-body-md text-body">
-              The metric is speedup over normal autoregressive decoding. A result is useful only if
-              it beats the baseline while staying inside the p95 latency guardrail.
+              The metric is speedup over the vLLM continuous-batching baseline. A result is useful
+              only if it beats that baseline while staying inside the p95 latency guardrail.
             </p>
           </div>
           <ComparisonTable rows={BASELINES} />
@@ -330,7 +330,7 @@ export default function CaseStudiesPage() {
             </div>
             <p className="max-w-[520px] text-body-sm text-body">
               A deterministic replay of the benchmark summary: same 512-request workload, baseline
-              on the left, selected Autoreduce policy on the right.
+              vLLM on the left, selected Autoreduce policy on the right.
             </p>
           </div>
           <SpeculativeServingReplay />
@@ -416,10 +416,36 @@ export default function CaseStudiesPage() {
 
         <section className="mt-section grid gap-md lg:grid-cols-3">
           <article className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Why this policy won</h3>
+            <p className="mt-md text-body-sm text-body">
+              The agent guessed that acceptance rate is the real control signal. Easy requests can
+              safely use longer drafts, while hard requests need shorter drafts to avoid wasted
+              verification.
+            </p>
+          </article>
+          <article className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Why KV grouping helped</h3>
+            <p className="mt-md text-body-sm text-body">
+              Mixing long-context and short-context requests made batches look full while increasing
+              memory pressure. Grouping similar KV footprints kept verification batches healthier.
+            </p>
+          </article>
+          <article className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Why 8 GPUs lost</h3>
+            <p className="mt-md text-body-sm text-body">
+              The extra GPUs allowed larger candidate groups, but larger groups pushed p95 above the
+              guardrail. The planner kept the 4-GPU point and used the rest for broad search.
+            </p>
+          </article>
+        </section>
+
+        <section className="mt-section grid gap-md lg:grid-cols-3">
+          <article className="rounded-lg border border-hairline bg-canvas p-xl">
             <h3 className="text-heading-md text-ink">Useful result</h3>
             <p className="mt-md text-body-sm text-body">
               The best policy improved throughput by 31% over autoregressive decoding while staying
-              under the latency target at the 4-GPU point.
+              under the latency target at the 4-GPU point, compared to the vLLM continuous-batching
+              baseline.
             </p>
           </article>
           <article className="rounded-lg border border-hairline bg-canvas p-xl">

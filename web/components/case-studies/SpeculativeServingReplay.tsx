@@ -6,21 +6,23 @@ import { TrafficLights } from "@/components/ui/TrafficLights";
 const STEPS = [
   {
     label: "baseline",
-    title: "Baseline autoregressive",
-    status: "replaying standard decode",
+    title: "vLLM baseline",
+    status: "continuous batching, no speculative policy",
     progress: 18,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "-", p95: "-", targetCalls: "-", accepted: "-" },
-    log: "[baseline] autoregressive: 1.00x, p95 218ms",
+    patch: ["vLLM continuous batching", "Paged KV cache", "one target decode per accepted token"],
+    log: "[baseline] vLLM continuous batching: 1.00x, p95 218ms",
   },
   {
     label: "agent",
     title: "Agent writes method",
-    status: "hybrid adaptive + KV-aware batching",
+    status: "adds policy layer around vLLM scheduler",
     progress: 34,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "drafting", p95: "-", targetCalls: "-", accepted: "-" },
-    log: "[agent-08] wrote hybrid adaptive + KV-aware batching",
+    patch: ["bucket by acceptance estimate", "choose draft length 2/4/8", "avoid high KV-pressure mixes"],
+    log: "[agent-08] patched scheduler: acceptance buckets + KV-aware grouping",
   },
   {
     label: "1 gpu",
@@ -29,6 +31,7 @@ const STEPS = [
     progress: 52,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.21x", p95: "224 ms", targetCalls: "423", accepted: "2.3" },
+    patch: ["2.3 accepted tokens/call", "17% fewer target calls", "p95 still inside guardrail"],
     log: "[bench] 1 GPU: 1.21x, p95 224ms",
   },
   {
@@ -38,6 +41,7 @@ const STEPS = [
     progress: 74,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.31x", p95: "245 ms", targetCalls: "391", accepted: "2.8" },
+    patch: ["split candidate groups across GPUs", "merge compatible verification batches", "p95 under 250ms"],
     log: "[bench] 4 GPU: 1.31x, p95 245ms",
   },
   {
@@ -47,6 +51,7 @@ const STEPS = [
     progress: 88,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.30x", p95: "269 ms", targetCalls: "394", accepted: "2.8" },
+    patch: ["more GPUs did not improve acceptance", "larger batches increased tail latency", "marginal gain went negative"],
     log: "[bench] 8 GPU: 1.30x, p95 269ms",
   },
   {
@@ -56,6 +61,7 @@ const STEPS = [
     progress: 100,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.31x", p95: "245 ms", targetCalls: "391", accepted: "2.8" },
+    patch: ["ship 4-GPU serving policy", "leave 4 H100s for broad search", "keep vLLM baseline as fallback"],
     log: "[planner] choose 4 of 8 GPUs; return the rest to search",
   },
 ];
@@ -101,9 +107,9 @@ export function SpeculativeServingReplay() {
       <div className="grid gap-md md:grid-cols-2">
         <article className="rounded-lg border border-hairline bg-canvas p-lg">
           <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-            vLLM-style autoregressive baseline
+            vLLM baseline
           </p>
-          <h3 className="mt-sm text-heading-md text-ink">Standard decode</h3>
+          <h3 className="mt-sm text-heading-md text-ink">Continuous batching</h3>
           <MetricRows rows={step.baseline} />
           <div className="mt-lg h-[8px] overflow-hidden rounded-full bg-surface-soft">
             <div className="h-full rounded-full bg-hairline-strong" style={{ width: `${Math.min(step.progress, 92)}%` }} />
@@ -112,7 +118,7 @@ export function SpeculativeServingReplay() {
 
         <article className="rounded-lg border border-hairline bg-canvas p-lg">
           <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-            autoreduce selected policy
+            agent patch on vLLM
           </p>
           <h3 className="mt-sm text-heading-md text-ink">Hybrid batching</h3>
           <MetricRows rows={step.autoreduce} />
@@ -132,6 +138,14 @@ export function SpeculativeServingReplay() {
         <div className="mt-md">
           <h3 className="text-heading-sm text-ink">{step.title}</h3>
           <p className="mt-xs text-body-sm text-body">{step.status}</p>
+        </div>
+        <div className="mt-md rounded-md border border-hairline bg-surface-soft p-md">
+          <div className="text-caption-sm text-mute">what changed</div>
+          <ul className="mt-sm space-y-xs text-caption-sm text-charcoal">
+            {step.patch.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
         </div>
         <pre className="mt-md min-h-[160px] overflow-x-auto whitespace-pre-wrap font-mono text-code-sm leading-relaxed text-body">
           {["[demo] replaying 512 serving requests", ...logs].join("\n")}
