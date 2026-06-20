@@ -148,7 +148,7 @@ export function SpeculativeServingReplay() {
           </ul>
         </div>
         <pre className="mt-md min-h-[160px] overflow-x-auto whitespace-pre-wrap font-mono text-code-sm leading-relaxed text-body">
-          {["[demo] replaying 512 serving requests", ...logs].join("\n")}
+          {["[demo] Llama-3.1-70B target + Llama-3.2-3B draft", "[demo] replaying 512 serving requests", ...logs].join("\n")}
         </pre>
       </div>
     </div>

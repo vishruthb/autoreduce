@@ -21,6 +21,9 @@ const PROMPT = [
 
 const SETUP = [
   ["GPU pool", "8 H100 slots"],
+  ["Target model", "Llama-3.1-70B-Instruct"],
+  ["Draft model", "Llama-3.2-3B-Instruct"],
+  ["Replay workload", "512 mixed requests"],
   ["Initial mode", "wide search"],
   ["Initial allocation", "8 one-GPU experiments"],
   ["Benchmark", "sealed serving benchmark"],
@@ -154,6 +157,17 @@ const CONTEXT = [
     "Autoreduce proposal",
     "Autoreduce searches the batching policy on top of the serving runtime: acceptance-rate buckets, adaptive draft length, KV-pressure grouping, compatible verification batches, and GPU bundle choice.",
   ],
+];
+
+const BENCHMARK_SETUP = [
+  ["Target model", "Llama-3.1-70B-Instruct"],
+  ["Draft model", "Llama-3.2-3B-Instruct"],
+  ["Serving substrate", "vLLM continuous batching + PagedAttention"],
+  ["Request replay", "512 mixed chat/code/summarization requests"],
+  ["Prompt length mix", "short 45%, medium 40%, long-context 15%"],
+  ["Output cap", "256 generated tokens/request"],
+  ["Held constant", "same prompts, model weights, tokenizer, sampling config, and p95 target"],
+  ["Searched policy", "draft length, request grouping, verification batch shape, GPU bundle size"],
 ];
 
 const SOURCES = [
@@ -295,6 +309,30 @@ export default function CaseStudiesPage() {
           <MetricCard label="GPU pool" value="8 H100" body="The run starts with eight H100 slots available to the scheduler." />
           <MetricCard label="best scaled point" value="1.31x" body="Hybrid policy at 4 GPUs before p95 latency degraded." />
           <MetricCard label="planner decision" value="4 of 8" body="The 8-GPU probe flattened, so the planner returned capacity to search." />
+        </section>
+
+        <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
+          <div>
+            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+              benchmark setup
+            </p>
+            <h2 className="mt-sm text-display-lg text-ink">Models and workload</h2>
+            <p className="mt-md text-body-md text-body">
+              The baseline and Autoreduce policy use the same target model, draft model, tokenizer,
+              prompts, and sampling configuration. The only thing changing is the batching and
+              speculative verification policy.
+            </p>
+          </div>
+          <div className="rounded-lg border border-hairline bg-canvas p-lg">
+            <div className="space-y-sm">
+              {BENCHMARK_SETUP.map(([label, value]) => (
+                <div key={label} className="flex items-start justify-between gap-lg border-b border-hairline pb-sm last:border-b-0 last:pb-0">
+                  <span className="text-body-sm text-body">{label}</span>
+                  <span className="max-w-[360px] text-right font-mono text-code-sm text-ink">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
