@@ -88,12 +88,6 @@ const ALLOCATION_MODES = [
   { label: "Validate", units: [8] },
 ];
 
-const SCALE_CURVES = [
-  { label: "Hybrid batching", values: [1.34, 1.44, 1.48, 1.47] },
-  { label: "Candidate parallel", values: [1.06, 1.23, 1.41, 1.43] },
-  { label: "Fixed draft", values: [1.11, 1.12, 1.12, 1.1] },
-];
-
 const PROBLEM_SPACES = [
   {
     title: "Speculative Decoding",
@@ -205,71 +199,6 @@ function AllocationVisual() {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function ScaleCurveVisual() {
-  const gpuLabels = ["1", "2", "4", "8"];
-  const xFor = (index: number) => 52 + index * 150;
-  const yFor = (value: number) => 198 - ((value - 1) / 0.55) * 144;
-  const colors = ["#f4f4f5", "#a8a8b2", "#71717a"];
-
-  return (
-    <div className="rounded-lg border border-hairline bg-canvas p-lg">
-      <div className="overflow-x-auto">
-        <svg
-          aria-label="Synthetic scale curves across 1, 2, 4, and 8 GPUs"
-          className="min-w-[560px]"
-          viewBox="0 0 560 250"
-          role="img"
-        >
-          {[1.0, 1.2, 1.4].map((tick) => (
-            <g key={tick}>
-              <line x1="40" x2="520" y1={yFor(tick)} y2={yFor(tick)} stroke="#27272a" />
-              <text x="0" y={yFor(tick) + 4} fill="#71717a" fontSize="12">
-                {tick.toFixed(1)}x
-              </text>
-            </g>
-          ))}
-          {gpuLabels.map((gpu, index) => (
-            <text key={gpu} x={xFor(index) - 12} y="232" fill="#71717a" fontSize="12">
-              {gpu} GPU
-            </text>
-          ))}
-          {SCALE_CURVES.map((curve, curveIndex) => {
-            const points = curve.values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(" ");
-            return (
-              <g key={curve.label}>
-                <polyline
-                  fill="none"
-                  points={points}
-                  stroke={colors[curveIndex]}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="3"
-                />
-                {curve.values.map((value, index) => (
-                  <g key={`${curve.label}-${index}`}>
-                    <circle cx={xFor(index)} cy={yFor(value)} fill="#0b0b0c" r="5" stroke={colors[curveIndex]} strokeWidth="3" />
-                    <text x={xFor(index) - 15} y={yFor(value) - 10} fill={colors[curveIndex]} fontSize="12">
-                      {value.toFixed(2)}
-                    </text>
-                  </g>
-                ))}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      <div className="mt-md grid gap-sm md:grid-cols-3">
-        {SCALE_CURVES.map((curve, index) => (
-          <div key={curve.label} className="flex items-center gap-sm">
-            <span className="h-[3px] w-[28px] rounded-full" style={{ backgroundColor: colors[index] }} />
-            <span className="text-body-sm text-body">{curve.label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -484,20 +413,6 @@ export default function DocsPage() {
               that need scale to be evaluated correctly.
             </p>
           </div>
-        </section>
-
-        <section className="mt-section">
-          <SectionHeading
-            eyebrow="scale curves"
-            title="Scale curves, not just leaderboards"
-            body="A flat leaderboard hides whether a method only works at a specific GPU count or batching regime."
-          />
-          <div className="mt-xl">
-            <ScaleCurveVisual />
-          </div>
-          <p className="mt-md text-caption-sm text-mute">
-            The best one-GPU method is not always the best scaled method.
-          </p>
         </section>
 
         <section className="mt-section" id="problem-spaces">
