@@ -139,7 +139,7 @@ const SUMMARY = [
 ];
 
 const BASELINES = [
-  ["vLLM continuous batching", "1.00x", "baseline", "reference path"],
+  ["vLLM continuous batching", "1.00x", "normalized", "strong serving baseline"],
   ["Fixed draft-length batching", "1.04x", "+4%", "simple batching baseline"],
   ["Best one-GPU policy", "1.21x", "+21%", "under p95 guardrail"],
   ["Best scaled policy", "1.31x", "+31%", "best at 4 of 8 GPUs"],
@@ -147,12 +147,12 @@ const BASELINES = [
 
 const CONTEXT = [
   [
-    "Standard decode path",
-    "The comparison baseline is vLLM continuous batching with PagedAttention-style KV-cache management. It is a strong serving baseline, but each accepted token still comes from the target model decode path.",
+    "vLLM baseline",
+    "The baseline is vLLM continuous batching with PagedAttention-style KV-cache management, normalized to 1.00x for this workload. This does not mean vLLM is slow; it is the strong serving runtime we compare against.",
   ],
   [
-    "What the agent changed",
-    "The agent did not replace vLLM. It searched for a scheduling policy around it: acceptance-rate buckets, adaptive draft length, KV-pressure grouping, and GPU bundle choices.",
+    "Autoreduce proposal",
+    "Autoreduce searches the batching policy on top of the serving runtime: acceptance-rate buckets, adaptive draft length, KV-pressure grouping, compatible verification batches, and GPU bundle choice.",
   ],
 ];
 
@@ -305,7 +305,8 @@ export default function CaseStudiesPage() {
             <h2 className="mt-sm text-display-lg text-ink">What did it beat?</h2>
             <p className="mt-md text-body-md text-body">
               The metric is speedup over the vLLM continuous-batching baseline. A result is useful
-              only if it beats that baseline while staying inside the p95 latency guardrail.
+              only if it beats that normalized baseline while staying inside the p95 latency
+              guardrail.
             </p>
           </div>
           <ComparisonTable rows={BASELINES} />
@@ -326,11 +327,12 @@ export default function CaseStudiesPage() {
               <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
                 serving replay
               </p>
-              <h2 className="mt-sm text-display-lg text-ink">Baseline vs Autoreduce policy</h2>
+              <h2 className="mt-sm text-display-lg text-ink">vLLM baseline vs Autoreduce policy</h2>
             </div>
             <p className="max-w-[520px] text-body-sm text-body">
-              A deterministic replay of the benchmark summary: same 512-request workload, baseline
-              vLLM on the left, selected Autoreduce policy on the right.
+              A deterministic replay of the benchmark summary: same 512-request workload, vLLM
+              continuous batching on the left, Autoreduce's adaptive speculative batching policy on
+              the right.
             </p>
           </div>
           <SpeculativeServingReplay />
@@ -443,9 +445,8 @@ export default function CaseStudiesPage() {
           <article className="rounded-lg border border-hairline bg-canvas p-xl">
             <h3 className="text-heading-md text-ink">Useful result</h3>
             <p className="mt-md text-body-sm text-body">
-              The best policy improved throughput by 31% over autoregressive decoding while staying
-              under the latency target at the 4-GPU point, compared to the vLLM continuous-batching
-              baseline.
+              The best policy improved throughput by 31% over the normalized vLLM continuous-
+              batching baseline while staying under the latency target at the 4-GPU point.
             </p>
           </article>
           <article className="rounded-lg border border-hairline bg-canvas p-xl">

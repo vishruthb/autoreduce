@@ -7,22 +7,22 @@ const STEPS = [
   {
     label: "baseline",
     title: "vLLM baseline",
-    status: "continuous batching, no speculative policy",
+    status: "normalized to 1.00x for this workload",
     progress: 18,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "-", p95: "-", targetCalls: "-", accepted: "-" },
-    patch: ["vLLM continuous batching", "Paged KV cache", "one target decode per accepted token"],
-    log: "[baseline] vLLM continuous batching: 1.00x, p95 218ms",
+    patch: ["continuous batching", "PagedAttention KV cache", "normalized reference = 1.00x"],
+    log: "[baseline] vLLM continuous batching normalized to 1.00x, p95 218ms",
   },
   {
     label: "agent",
     title: "Agent writes method",
-    status: "adds policy layer around vLLM scheduler",
+    status: "searches adaptive speculative batching",
     progress: 34,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "drafting", p95: "-", targetCalls: "-", accepted: "-" },
-    patch: ["bucket by acceptance estimate", "choose draft length 2/4/8", "avoid high KV-pressure mixes"],
-    log: "[agent-08] patched scheduler: acceptance buckets + KV-aware grouping",
+    patch: ["bucket by acceptance estimate", "choose draft length 2/4/8", "batch compatible verification calls"],
+    log: "[agent-08] proposed adaptive speculative batching on vLLM",
   },
   {
     label: "1 gpu",
@@ -31,7 +31,7 @@ const STEPS = [
     progress: 52,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.21x", p95: "224 ms", targetCalls: "423", accepted: "2.3" },
-    patch: ["2.3 accepted tokens/call", "17% fewer target calls", "p95 still inside guardrail"],
+    patch: ["2.3 accepted tokens/call", "17% fewer target-model calls", "p95 still inside guardrail"],
     log: "[bench] 1 GPU: 1.21x, p95 224ms",
   },
   {
@@ -41,7 +41,7 @@ const STEPS = [
     progress: 74,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.31x", p95: "245 ms", targetCalls: "391", accepted: "2.8" },
-    patch: ["split candidate groups across GPUs", "merge compatible verification batches", "p95 under 250ms"],
+    patch: ["split draft groups across GPUs", "merge compatible verification batches", "p95 under 250ms"],
     log: "[bench] 4 GPU: 1.31x, p95 245ms",
   },
   {
@@ -61,7 +61,7 @@ const STEPS = [
     progress: 100,
     baseline: { throughput: "1.00x", p95: "218 ms", targetCalls: "512", accepted: "1.0" },
     autoreduce: { throughput: "1.31x", p95: "245 ms", targetCalls: "391", accepted: "2.8" },
-    patch: ["ship 4-GPU serving policy", "leave 4 H100s for broad search", "keep vLLM baseline as fallback"],
+    patch: ["use 4-GPU policy for this workload", "leave 4 H100s for broad search", "keep vLLM baseline as fallback"],
     log: "[planner] choose 4 of 8 GPUs; return the rest to search",
   },
 ];
@@ -118,7 +118,7 @@ export function SpeculativeServingReplay() {
 
         <article className="rounded-lg border border-hairline bg-canvas p-lg">
           <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-            agent patch on vLLM
+            adaptive speculative batching
           </p>
           <h3 className="mt-sm text-heading-md text-ink">Hybrid batching</h3>
           <MetricRows rows={step.autoreduce} />
