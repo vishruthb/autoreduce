@@ -151,23 +151,12 @@ const BASELINES = [
 const CONTEXT = [
   [
     "vLLM baseline",
-    "The baseline is vLLM continuous batching with PagedAttention-style KV-cache management, normalized to 1.00x for this workload. This does not mean vLLM is slow; it is the strong serving runtime we compare against.",
+    "The reference is vLLM continuous batching with PagedAttention-style KV-cache management, normalized to 1.00x on the same target model, draft model, and request replay.",
   ],
   [
     "Autoreduce proposal",
-    "Autoreduce searches the batching policy on top of the serving runtime: acceptance-rate buckets, adaptive draft length, KV-pressure grouping, compatible verification batches, and GPU bundle choice.",
+    "Autoreduce searches the policy layer on top: acceptance buckets, adaptive draft length, KV-pressure grouping, verification batch shape, and GPU bundle choice.",
   ],
-];
-
-const BENCHMARK_SETUP = [
-  ["Target model", "Llama-3.1-70B-Instruct"],
-  ["Draft model", "Llama-3.2-3B-Instruct"],
-  ["Serving substrate", "vLLM continuous batching + PagedAttention"],
-  ["Request replay", "512 mixed chat/code/summarization requests"],
-  ["Prompt length mix", "short 45%, medium 40%, long-context 15%"],
-  ["Output cap", "256 generated tokens/request"],
-  ["Held constant", "same prompts, model weights, tokenizer, sampling config, and p95 target"],
-  ["Searched policy", "draft length, request grouping, verification batch shape, GPU bundle size"],
 ];
 
 const SOURCES = [
@@ -314,30 +303,6 @@ export default function CaseStudiesPage() {
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
           <div>
             <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-              benchmark setup
-            </p>
-            <h2 className="mt-sm text-display-lg text-ink">Models and workload</h2>
-            <p className="mt-md text-body-md text-body">
-              The baseline and Autoreduce policy use the same target model, draft model, tokenizer,
-              prompts, and sampling configuration. The only thing changing is the batching and
-              speculative verification policy.
-            </p>
-          </div>
-          <div className="rounded-lg border border-hairline bg-canvas p-lg">
-            <div className="space-y-sm">
-              {BENCHMARK_SETUP.map(([label, value]) => (
-                <div key={label} className="flex items-start justify-between gap-lg border-b border-hairline pb-sm last:border-b-0 last:pb-0">
-                  <span className="text-body-sm text-body">{label}</span>
-                  <span className="max-w-[360px] text-right font-mono text-code-sm text-ink">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
-          <div>
-            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
               baseline comparison
             </p>
             <h2 className="mt-sm text-display-lg text-ink">What did it beat?</h2>
@@ -475,30 +440,6 @@ export default function CaseStudiesPage() {
             <p className="mt-md text-body-sm text-body">
               The extra GPUs allowed larger candidate groups, but larger groups pushed p95 above the
               guardrail. The planner kept the 4-GPU point and used the rest for broad search.
-            </p>
-          </article>
-        </section>
-
-        <section className="mt-section grid gap-md lg:grid-cols-3">
-          <article className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">Useful result</h3>
-            <p className="mt-md text-body-sm text-body">
-              The best policy improved throughput by 31% over the normalized vLLM continuous-
-              batching baseline while staying under the latency target at the 4-GPU point.
-            </p>
-          </article>
-          <article className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">Research signal</h3>
-            <p className="mt-md text-body-sm text-body">
-              A weak one-GPU idea became useful only when candidate generation was parallelized. A
-              normal one-GPU search would have likely discarded it.
-            </p>
-          </article>
-          <article className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">Scaling decision</h3>
-            <p className="mt-md text-body-sm text-body">
-              The 8-GPU point did not justify its cost. Autoreduce learned where the method stopped
-              being worth scaling.
             </p>
           </article>
         </section>
