@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TrafficLights } from "@/components/ui/TrafficLights";
+import { SpeculativeServingReplay } from "@/components/case-studies/SpeculativeServingReplay";
 
 export const metadata: Metadata = {
   title: "Case studies - autoreduce",
@@ -144,43 +145,15 @@ const BASELINES = [
   ["Best scaled policy", "1.31x", "+31%", "best at 4 of 8 GPUs"],
 ];
 
-const REPLAY_METRICS = [
-  {
-    title: "Baseline autoregressive",
-    subtitle: "standard decode path",
-    rows: [
-      ["requests", "512"],
-      ["throughput", "1.00x"],
-      ["p95 latency", "218 ms"],
-      ["target calls", "512"],
-      ["accepted / call", "1.0"],
-      ["GPU use", "8 H100 pool"],
-    ],
-  },
-  {
-    title: "Autoreduce policy",
-    subtitle: "hybrid adaptive + KV-aware batching",
-    rows: [
-      ["requests", "512"],
-      ["throughput", "1.31x"],
-      ["p95 latency", "245 ms"],
-      ["target calls", "391"],
-      ["accepted / call", "2.8"],
-      ["best point", "4 of 8 GPUs"],
-    ],
-  },
-];
-
-const REPLAY_LOG = [
-  "[demo] replaying 512 serving requests",
-  "[baseline] autoregressive: 1.00x, p95 218ms",
-  "[agent-08] wrote hybrid adaptive + KV-aware batching",
-  "[bench] 1 GPU: 1.21x, p95 224ms",
-  "[planner] candidate looks scale-sensitive",
-  "[scheduler] running 4-GPU probe",
-  "[bench] 4 GPU: 1.31x, p95 245ms",
-  "[bench] 8 GPU: 1.30x, p95 269ms",
-  "[planner] choose 4 of 8 GPUs; return the rest to search",
+const CONTEXT = [
+  [
+    "Standard decode path",
+    "vLLM/PagedAttention-style autoregressive serving: continuous batching and paged KV cache, but one accepted token still requires a target-model decode step.",
+  ],
+  [
+    "Published speed context",
+    "Speculative decoding papers report roughly 2x-3x or 2x-2.5x acceleration in their settings. This replay uses a more conservative serving-constrained 1.31x result.",
+  ],
 ];
 
 const SOURCES = [
@@ -280,37 +253,6 @@ function ComparisonTable({
   );
 }
 
-function ServingReplay() {
-  return (
-    <div className="grid gap-md lg:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="grid gap-md md:grid-cols-2">
-        {REPLAY_METRICS.map((panel) => (
-          <article key={panel.title} className="rounded-lg border border-hairline bg-canvas p-lg">
-            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-              {panel.subtitle}
-            </p>
-            <h3 className="mt-sm text-heading-md text-ink">{panel.title}</h3>
-            <div className="mt-lg space-y-sm">
-              {panel.rows.map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-md border-b border-hairline pb-sm last:border-b-0 last:pb-0">
-                  <span className="text-body-sm text-body">{label}</span>
-                  <span className="font-mono text-code-sm text-ink">{value}</span>
-                </div>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-      <div className="rounded-lg border border-hairline bg-canvas p-lg">
-        <TrafficLights />
-        <pre className="mt-md overflow-x-auto whitespace-pre-wrap font-mono text-code-sm leading-relaxed text-body">
-          {REPLAY_LOG.join("\n")}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
 export default function CaseStudiesPage() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-56px)] max-w-dash flex-col px-lg">
@@ -369,6 +311,15 @@ export default function CaseStudiesPage() {
           <ComparisonTable rows={BASELINES} />
         </section>
 
+        <section className="mt-xl grid gap-md lg:grid-cols-2">
+          {CONTEXT.map(([title, body]) => (
+            <article key={title} className="rounded-lg border border-hairline bg-canvas p-lg">
+              <h3 className="text-heading-sm text-ink">{title}</h3>
+              <p className="mt-sm text-body-sm text-body">{body}</p>
+            </article>
+          ))}
+        </section>
+
         <section className="mt-section">
           <div className="mb-xl flex flex-col justify-between gap-md md:flex-row md:items-end">
             <div>
@@ -382,7 +333,7 @@ export default function CaseStudiesPage() {
               on the left, selected Autoreduce policy on the right.
             </p>
           </div>
-          <ServingReplay />
+          <SpeculativeServingReplay />
         </section>
 
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
