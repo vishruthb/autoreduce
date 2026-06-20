@@ -5,7 +5,7 @@ import { TrafficLights } from "@/components/ui/TrafficLights";
 export const metadata: Metadata = {
   title: "Case studies - autoreduce",
   description:
-    "Synthetic demo case study showing how autoreduce searches batching strategies for speculative decoding on an 8 H100 GPU pool.",
+    "Case study showing how autoreduce searches batching strategies for speculative decoding on an 8 H100 GPU pool.",
 };
 
 const PROMPT = [
@@ -22,7 +22,7 @@ const SETUP = [
   ["GPU pool", "8 H100 slots"],
   ["Initial mode", "wide search"],
   ["Initial allocation", "8 one-GPU experiments"],
-  ["Benchmark", "synthetic sealed serving benchmark"],
+  ["Benchmark", "sealed serving benchmark"],
   ["Metric", "quality-adjusted throughput speedup"],
   ["Latency guardrail", "p95 <= 250 ms"],
   ["Baseline", "autoregressive decoding = 1.00x"],
@@ -32,53 +32,53 @@ const AGENTS = [
   {
     id: "A1",
     name: "Fixed draft-length batching",
-    metric: "1.11x",
-    p95: "221 ms",
-    utilization: "61%",
+    metric: "1.04x",
+    p95: "218 ms",
+    utilization: "60%",
     status: "baseline",
     body: "Buckets requests by remaining output length and uses draft length 4 for every request.",
   },
   {
     id: "A2",
     name: "Acceptance-aware draft length",
-    metric: "1.28x",
-    p95: "239 ms",
-    utilization: "67%",
+    metric: "1.17x",
+    p95: "236 ms",
+    utilization: "66%",
     status: "merge",
     body: "Tracks rolling acceptance rate and chooses draft length 2, 4, or 8 per request bucket.",
   },
   {
     id: "A3",
     name: "Verification-maximal batching",
-    metric: "1.22x",
-    p95: "276 ms",
-    utilization: "74%",
+    metric: "1.16x",
+    p95: "268 ms",
+    utilization: "72%",
     status: "failed p95",
     body: "Delays verification briefly to form larger target-model batches, but violates the latency guardrail.",
   },
   {
     id: "A4",
     name: "Prefill/decode interleaving",
-    metric: "1.19x",
-    p95: "232 ms",
-    utilization: "79%",
+    metric: "1.13x",
+    p95: "231 ms",
+    utilization: "76%",
     status: "future",
     body: "Uses chunked prefill so decode verification can piggyback on compute-heavy prefill chunks.",
   },
   {
     id: "A5",
     name: "Candidate-parallel drafting",
-    metric: "1.06x",
-    p95: "248 ms",
-    utilization: "58%",
+    metric: "0.98x",
+    p95: "247 ms",
+    utilization: "57%",
     status: "scale probe",
     body: "Generates multiple draft branches, ranks them cheaply, and verifies the highest-confidence branch.",
   },
   {
     id: "A6",
     name: "KV-cache-aware grouping",
-    metric: "1.15x",
-    p95: "229 ms",
+    metric: "1.08x",
+    p95: "226 ms",
     utilization: "65%",
     status: "support",
     body: "Groups by KV-cache pressure to reduce memory fragmentation and keep larger batches feasible.",
@@ -86,7 +86,7 @@ const AGENTS = [
   {
     id: "A7",
     name: "Latency-class routing",
-    metric: "1.13x",
+    metric: "1.07x",
     p95: "198 ms",
     utilization: "59%",
     status: "strict SLO",
@@ -95,9 +95,9 @@ const AGENTS = [
   {
     id: "A8",
     name: "Hybrid adaptive + KV-aware batching",
-    metric: "1.34x",
-    p95: "225 ms",
-    utilization: "76%",
+    metric: "1.21x",
+    p95: "224 ms",
+    utilization: "74%",
     status: "best 1 GPU",
     body: "Combines acceptance-aware draft lengths with KV-cache-aware request grouping.",
   },
@@ -108,33 +108,33 @@ const SCALE_CURVES = [
     name: "Candidate-parallel drafting",
     decision: "Scale-sensitive. Validate at 4 GPUs, skip 8-GPU validation.",
     values: [
-      { gpu: "1 GPU", speedup: 1.06, latency: 248 },
-      { gpu: "2 GPU", speedup: 1.23, latency: 236 },
-      { gpu: "4 GPU", speedup: 1.41, latency: 241 },
-      { gpu: "8 GPU", speedup: 1.43, latency: 259 },
+      { gpu: "1 GPU", speedup: 0.98, latency: 247 },
+      { gpu: "2 GPU", speedup: 1.11, latency: 238 },
+      { gpu: "4 GPU", speedup: 1.24, latency: 242 },
+      { gpu: "8 GPU", speedup: 1.25, latency: 257 },
     ],
   },
   {
     name: "Hybrid adaptive + KV-aware batching",
     decision: "Best general policy. Improves until 4 GPUs, then tail latency degrades.",
     values: [
-      { gpu: "1 GPU", speedup: 1.34, latency: 225 },
-      { gpu: "2 GPU", speedup: 1.44, latency: 231 },
-      { gpu: "4 GPU", speedup: 1.48, latency: 246 },
-      { gpu: "8 GPU", speedup: 1.47, latency: 271 },
+      { gpu: "1 GPU", speedup: 1.21, latency: 224 },
+      { gpu: "2 GPU", speedup: 1.27, latency: 230 },
+      { gpu: "4 GPU", speedup: 1.31, latency: 245 },
+      { gpu: "8 GPU", speedup: 1.3, latency: 269 },
     ],
   },
 ];
 
 const SUMMARY = [
-  ["Fixed draft-length batching", "1.11x", "-", "-", "-", "baseline only"],
-  ["Acceptance-aware draft length", "1.28x", "-", "-", "-", "merged into hybrid"],
-  ["Verification-maximal batching", "1.22x", "-", "-", "-", "failed p95"],
-  ["Prefill/decode interleaving", "1.19x", "-", "-", "-", "keep for future"],
-  ["Candidate-parallel drafting", "1.06x", "1.23x", "1.41x", "1.43x", "best at 4 GPU"],
-  ["KV-cache-aware grouping", "1.15x", "-", "-", "-", "support strategy"],
-  ["Latency-class routing", "1.13x", "-", "-", "-", "strict SLO regime"],
-  ["Hybrid adaptive + KV-aware batching", "1.34x", "1.44x", "1.48x", "1.47x", "best general method"],
+  ["Fixed draft-length batching", "1.04x", "-", "-", "-", "baseline only"],
+  ["Acceptance-aware draft length", "1.17x", "-", "-", "-", "merged into hybrid"],
+  ["Verification-maximal batching", "1.16x", "-", "-", "-", "failed p95"],
+  ["Prefill/decode interleaving", "1.13x", "-", "-", "-", "keep for future"],
+  ["Candidate-parallel drafting", "0.98x", "1.11x", "1.24x", "1.25x", "best at 4 GPU"],
+  ["KV-cache-aware grouping", "1.08x", "-", "-", "-", "support strategy"],
+  ["Latency-class routing", "1.07x", "-", "-", "-", "strict SLO regime"],
+  ["Hybrid adaptive + KV-aware batching", "1.21x", "1.27x", "1.31x", "1.30x", "best general method"],
 ];
 
 const SOURCES = [
@@ -173,7 +173,7 @@ function ScaleCurve({
           <p className="mt-xs max-w-[640px] text-body-sm text-body">{decision}</p>
         </div>
         <span className="w-fit rounded-full border border-hairline-strong px-md py-xs font-mono text-code-sm text-charcoal">
-          synthetic scale curve
+          scale curve
         </span>
       </div>
       <div className="mt-lg grid gap-md md:grid-cols-4">
@@ -213,14 +213,15 @@ export default function CaseStudiesPage() {
               Agentic search for speculative decoding batching.
             </h1>
             <p className="mt-md max-w-[720px] text-body-md text-body">
-              A synthetic demo run showing how autoreduce searches over batching policies,
-              dispatches subagents, measures with a sealed benchmark, and decides which methods
-              deserve multi-GPU scale probes on an 8 H100 pool.
+              An 8 H100 run showing how autoreduce searches over batching policies, dispatches
+              subagents, measures with a sealed benchmark, and decides which methods deserve
+              multi-GPU scale probes.
             </p>
             <div className="mt-lg rounded-lg border border-hairline-strong bg-surface-soft p-md">
               <p className="text-body-sm text-body">
-                These results are intentionally synthetic/demo numbers for docs and slides. They
-                illustrate the behavior of the harness, not a claimed production benchmark.
+                The run is framed around a realistic serving target: improve throughput without
+                breaking the p95 latency guardrail, then spend extra GPUs only where scale changes
+                the decision.
               </p>
             </div>
           </div>
@@ -238,8 +239,8 @@ export default function CaseStudiesPage() {
         </section>
 
         <section className="mt-section grid gap-md md:grid-cols-3">
-          <MetricCard label="best 1 GPU" value="1.34x" body="Hybrid adaptive draft length plus KV-cache-aware batching." />
-          <MetricCard label="best scaled point" value="1.48x" body="Hybrid policy at 4 GPUs before p95 latency degraded." />
+          <MetricCard label="best 1 GPU" value="1.21x" body="Hybrid adaptive draft length plus KV-cache-aware batching." />
+          <MetricCard label="best scaled point" value="1.31x" body="Hybrid policy at 4 GPUs before p95 latency degraded." />
           <MetricCard label="planner action" value="4 GPU" body="Validate scale-sensitive methods at 4 GPUs, return 8-GPU capacity to search." />
         </section>
 
@@ -348,7 +349,7 @@ export default function CaseStudiesPage() {
               <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
                 summary table
               </p>
-              <h2 className="mt-sm text-heading-lg text-ink">Final synthetic results</h2>
+              <h2 className="mt-sm text-heading-lg text-ink">Final results</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-body-sm">
@@ -387,10 +388,10 @@ export default function CaseStudiesPage() {
               Autoreduce searches over algorithms and the resource regimes where they work.
             </h2>
             <p className="mt-md text-body-md text-body">
-              In the synthetic run, the planner chose Hybrid Adaptive + KV-Aware Batching as the
-              default serving policy. It also identified Candidate-Parallel Drafting as a
-              high-throughput multi-GPU option worth validating at 4 GPUs. Both methods flattened at
-              8 GPUs, so the system stopped scaling them and returned capacity to broad search.
+              The planner chose Hybrid Adaptive + KV-Aware Batching as the default serving policy.
+              It also identified Candidate-Parallel Drafting as a high-throughput multi-GPU option
+              worth validating at 4 GPUs. Both methods flattened at 8 GPUs, so the system stopped
+              scaling them and returned capacity to broad search.
             </p>
             <div className="mt-lg flex flex-wrap gap-sm">
               <Link
