@@ -28,13 +28,14 @@ function LiveIndicator() {
 
 /**
  * Shared nav, mounted in the root layout so it persists across navigation.
- * Its content column animates from the landing width (720px) to the dashboard
- * width (1120px) when you move to /dashboard — a smooth max-width transition.
+ * Its content column matches the main content width on public pages and the
+ * dashboard width in the app view.
  */
 export function TopBar() {
   const pathname = usePathname();
   const onDashboard = pathname?.startsWith("/dashboard") ?? false;
   const onWidePage =
+    pathname === "/" ||
     onDashboard ||
     (pathname?.startsWith("/how-it-works") ?? false) ||
     (pathname?.startsWith("/case-studies") ?? false);
