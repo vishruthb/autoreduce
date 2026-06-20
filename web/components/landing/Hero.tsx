@@ -11,7 +11,7 @@ export function Hero() {
         Autoreduce
       </p>
       <h1 className="mt-sm max-w-[820px] text-display-xl text-ink">
-        Distributed autoresearch for large-scale ML systems.
+        Distributed autoresearch.
       </h1>
       <p className="mt-md max-w-[720px] text-body-md text-body">
         Autoreduce uses coding agents, sealed benchmarks, and elastic GPU scheduling to search over
