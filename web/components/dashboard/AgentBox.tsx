@@ -24,16 +24,12 @@ export function AgentBox({
 
   if (!busy) {
     return (
-      <Card className="flex min-h-[96px] flex-col p-lg">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-code-sm text-mute">
-            GPU {slot.gpu_id}
-          </span>
-          <StatusDot kind="free" />
-        </div>
-        <div className="flex flex-1 items-center justify-center text-body-sm text-mute">
+      <Card className="flex items-center justify-between p-md opacity-70">
+        <span className="font-mono text-code-sm text-mute">GPU {slot.gpu_id}</span>
+        <span className="flex items-center gap-sm text-body-sm text-mute">
           idle
-        </div>
+          <StatusDot kind="free" />
+        </span>
       </Card>
     );
   }

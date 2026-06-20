@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Nunito, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/chrome/TopBar";
@@ -21,9 +21,15 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "autoreduce",
+  title: "autoreduce — autonomous research",
   description:
-    "Automated experiment reduction — one planner, eight workers, one ranked table.",
+    "Describe a goal in plain language. A planner proposes hypotheses, a pool of " +
+    "agents implements and benchmarks each one, and you get a ranked, verified " +
+    "report of what actually works.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0b0c",
 };
 
 export default function RootLayout({

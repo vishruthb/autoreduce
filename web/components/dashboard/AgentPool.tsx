@@ -15,7 +15,7 @@ export function AgentPool({
   now: number;
 }) {
   return (
-    <div className="grid grid-cols-2 items-start gap-md sm:grid-cols-4 xl:grid-cols-8">
+    <div className="grid grid-cols-2 items-start gap-md sm:grid-cols-3 lg:grid-cols-4">
       {slots.map((slot) => (
         <AgentBox
           key={slot.gpu_id}

@@ -9,11 +9,12 @@ export function Hero() {
         <Mascot size={96} />
       </div>
       <h1 className="mt-xl text-display-xl text-ink">
-        The easiest way to search for better experiments.
+        Autonomous research, from a single prompt.
       </h1>
-      <p className="mt-md max-w-[520px] text-body-md text-body">
-        One planner, eight workers, one ranked table. Point it at a number and
-        watch it climb.
+      <p className="mt-md max-w-[540px] text-body-md text-body">
+        Describe a goal in plain language. A planner proposes hypotheses, a pool
+        of agents implements and benchmarks each one in parallel, and you get a
+        ranked report of what actually works — every result measured, not claimed.
       </p>
       <div className="mt-xl flex w-full justify-center">
         <InstallSnippet command="python -m autoreduce" />

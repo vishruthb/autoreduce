@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const showControls = !active;
   const showReport =
     run != null && (run.state === "done" || run.state === "draining");
+  const busy = snapshot?.slots.filter((s) => s.status === "busy").length ?? 0;
 
   return (
     <main className="mx-auto max-w-dash px-lg py-xl">
@@ -59,32 +60,44 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {showControls && <RunControls />}
-
           {planner && run && active && <PlannerBox planner={planner} run={run} />}
 
           {showReport && run && (
             <ReportPanel run={run} refreshKey={snapshot.stats.done} />
           )}
 
-          <AgentPool
-            slots={snapshot.slots}
-            ideasById={ideasById}
-            logs={logs}
-            now={now}
-          />
+          {showControls && <RunControls />}
 
-          <section>
-            <div className="mb-md flex items-baseline justify-between">
-              <h2 className="text-heading-sm text-ink">Ranked results</h2>
-              <span className="text-caption-sm text-mute">
-                {snapshot.stats.done} done · {snapshot.stats.running} running ·{" "}
-                {snapshot.stats.queued} queued
-                {snapshot.stats.failed > 0 && ` · ${snapshot.stats.failed} failed`}
-              </span>
-            </div>
-            <RankedTable ideas={snapshot.ideas} now={now} />
-          </section>
+          {active && (
+            <section>
+              <div className="mb-md flex items-baseline justify-between">
+                <h2 className="text-heading-sm text-ink">Agent pool</h2>
+                <span className="text-caption-sm text-mute">
+                  {busy} running · {snapshot.slots.length - busy} idle
+                </span>
+              </div>
+              <AgentPool
+                slots={snapshot.slots}
+                ideasById={ideasById}
+                logs={logs}
+                now={now}
+              />
+            </section>
+          )}
+
+          {run && (
+            <section>
+              <div className="mb-md flex items-baseline justify-between">
+                <h2 className="text-heading-sm text-ink">Ranked results</h2>
+                <span className="text-caption-sm text-mute">
+                  {snapshot.stats.done} done · {snapshot.stats.running} running ·{" "}
+                  {snapshot.stats.queued} queued
+                  {snapshot.stats.failed > 0 && ` · ${snapshot.stats.failed} failed`}
+                </span>
+              </div>
+              <RankedTable ideas={snapshot.ideas} now={now} />
+            </section>
+          )}
         </div>
       )}
     </main>
