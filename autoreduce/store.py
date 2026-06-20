@@ -485,6 +485,7 @@ def read_digest(conn: sqlite3.Connection, run_id: int) -> dict[str, Any]:
     direction = run["direction"] if run else "maximize"
     best_metric, best_trajectory = best_progress(conn, run_id, direction)
     return {
+        "goal": run["prompt"] if run else None,
         "best_metric": best_metric,
         "best_trajectory": best_trajectory,
         "top_ideas": top_ideas(conn, run_id, direction),

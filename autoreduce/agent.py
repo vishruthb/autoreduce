@@ -130,12 +130,17 @@ def _build_user_prompt(task: Task, hypothesis: str, digest: dict[str, Any],
                        workspace: str) -> str:
     tried = [t.get("hypothesis", "") for t in digest.get("tried_hypotheses", [])][:12]
     top = digest.get("top_ideas", [])[:3]
+    goal = (digest.get("goal") or "").strip()
     parts = [
         f"Your working directory is exactly:\n  {workspace}\n"
         "Write your file there using the RELATIVE path `method.py` (just "
         "`method.py`, not an absolute path). You can only write inside this "
         "directory; writes anywhere else are denied.\n",
-        f"HYPOTHESIS TO IMPLEMENT:\n{hypothesis}\n",
+    ]
+    if goal:
+        parts.append(f"OVERALL GOAL (the user's objective for this search):\n{goal}\n")
+    parts.append(f"HYPOTHESIS TO IMPLEMENT:\n{hypothesis}\n")
+    parts += [
         f"THE SEALED INTERFACE (read-only, already importable):\n```python\n"
         f"{task.interface_source()}\n```",
     ]

@@ -186,7 +186,8 @@ async def design_search_space(prompt: str) -> dict[str, Any]:
 async def propose_hypotheses(*, n: int, domain_blurb: str, interface_source: str,
                              interface_name: str, objective_name: str,
                              direction: str, digest: dict[str, Any],
-                             stall_batches: int = 0, explore_target: int | None = None,
+                             goal: str = "", stall_batches: int = 0,
+                             explore_target: int | None = None,
                              feedback: str | None = None) -> list[dict[str, Any]]:
     # Explore quota: when the planner has measured a stall it pins an exact
     # explore/exploit split; otherwise leave the mix to the model (legacy behaviour).
@@ -214,8 +215,15 @@ async def propose_hypotheses(*, n: int, domain_blurb: str, interface_source: str
             "variation of an already-tried hypothesis in the digest; each explore idea "
             "must use a distinct mechanism.")
 
+    goal_line = (
+        f"The user's research goal, in their words: \"{goal.strip()}\"\n"
+        "Let this goal steer WHICH ideas you propose — every hypothesis should be a "
+        "plausible way to advance it, expressed as a method on the interface below.\n"
+        if goal and goal.strip() else ""
+    )
     system = (
-        f"You are a research planner. Domain: {domain_blurb}\n"
+        f"You are a research planner. {goal_line}"
+        f"Domain: {domain_blurb}\n"
         f"Objective: {direction} '{objective_name}'. Propose exactly {n} distinct, "
         f"concrete, implementable research ideas — each a method that subclasses "
         f"`{interface_name}`. {mix}{guidance}\n"

@@ -129,14 +129,16 @@ def _empty_digest() -> dict[str, Any]:
             "tried_hypotheses": [], "followups": [], "queue_depth": 0}
 
 
-async def _propose(task, digest, n: int, *, seed: bool, stall_batches: int = 0,
+async def _propose(task, digest, n: int, *, seed: bool, goal: str = "",
+                   stall_batches: int = 0,
                    explore_target: int | None = None) -> list[dict[str, Any]]:
     ideas = await llm.propose_hypotheses(
         n=n, domain_blurb=task.domain_blurb,
         interface_source=task.interface_source(),
         interface_name=task.interface_name,
         objective_name=task.objective_name, direction=task.direction,
-        digest=digest, stall_batches=stall_batches, explore_target=explore_target)
+        digest=digest, goal=goal, stall_batches=stall_batches,
+        explore_target=explore_target)
     if seed:
         for idea in ideas:
             idea["origin"] = "seed"
@@ -164,7 +166,8 @@ async def _start_run(pending) -> None:
         await _set_planner(run_id, status="seeding",
                            reasoning=f"Seeding ideas for: {task.domain_blurb[:80]}…",
                            exploring_region=task.objective_name)
-        ideas = await _propose(task, _empty_digest(), 2 * settings.pool_size, seed=True)
+        ideas = await _propose(task, _empty_digest(), 2 * settings.pool_size,
+                               seed=True, goal=pending["prompt"])
         global _batch, _best_metric, _best_batch
         _batch = 0
         _best_metric = None
@@ -214,7 +217,7 @@ async def _reseed(run, digest) -> None:
                        reasoning=_reseed_reason(stall, best),
                        exploring_region=_describe(digest))
     try:
-        ideas = await _propose(task, digest, n, seed=False,
+        ideas = await _propose(task, digest, n, seed=False, goal=run["prompt"],
                                stall_batches=stall, explore_target=explore_target)
     except llm.LLMError:
         return  # transient; try again next tick
