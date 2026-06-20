@@ -186,14 +186,40 @@ async def design_search_space(prompt: str) -> dict[str, Any]:
 async def propose_hypotheses(*, n: int, domain_blurb: str, interface_source: str,
                              interface_name: str, objective_name: str,
                              direction: str, digest: dict[str, Any],
+                             stall_batches: int = 0, explore_target: int | None = None,
                              feedback: str | None = None) -> list[dict[str, Any]]:
+    # Explore quota: when the planner has measured a stall it pins an exact
+    # explore/exploit split; otherwise leave the mix to the model (legacy behaviour).
+    if explore_target is None:
+        mix = ("Mix exploit (refine or combine the best methods so far) and explore "
+               "(genuinely new directions).")
+    else:
+        exploit_target = max(0, n - explore_target)
+        mix = (f"Of the {n} ideas, make EXACTLY {explore_target} have origin='explore' "
+               f"and {exploit_target} have origin='exploit'.")
+
+    if stall_batches >= 2:
+        # Plateau: exploitation has stopped paying off — force a genuine pivot.
+        guidance = (
+            f"\n\nIMPORTANT — the best score has NOT improved in {stall_batches} batches; "
+            "exploitation has plateaued. Minor variations of the current best (parameter "
+            "renames, re-tuned thresholds, re-bucketed statistics, paraphrases, or the "
+            "same method with one component swapped) are WORTHLESS now. Every "
+            "origin='explore' idea MUST use a DIFFERENT ALGORITHMIC FAMILY from every "
+            "hypothesis in the digest's tried list — a structurally distinct mechanism, "
+            "not a tweak of the winner. Name the family in the rationale.")
+    else:
+        guidance = (
+            "\n\nDo NOT propose any idea that is a paraphrase, parameter rename, or minor "
+            "variation of an already-tried hypothesis in the digest; each explore idea "
+            "must use a distinct mechanism.")
+
     system = (
         f"You are a research planner. Domain: {domain_blurb}\n"
         f"Objective: {direction} '{objective_name}'. Propose exactly {n} distinct, "
         f"concrete, implementable research ideas — each a method that subclasses "
-        f"`{interface_name}`. Mix exploit (refine or combine the best methods so "
-        "far) and explore (genuinely new directions). Do NOT duplicate "
-        "already-tried hypotheses. The method interface is:\n"
+        f"`{interface_name}`. {mix}{guidance}\n"
+        "The method interface is:\n"
         f"```python\n{interface_source}\n```"
     )
     user = "Digest of the search so far:\n" + json.dumps(digest, indent=2)

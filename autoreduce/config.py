@@ -49,10 +49,14 @@ class Settings:
 
     # worker agents (Claude Agent SDK sessions)
     agent_model: str = os.environ.get("AUTOREDUCE_AGENT_MODEL", "claude-sonnet-4-6")
-    agent_timeout: int = _int("AUTOREDUCE_AGENT_TIMEOUT", 180)   # per-idea wall-clock
+    # Per-agent wall-clock cap (seconds). On a real GPU box this bounds how long
+    # ONE agent can hold a slot; 8 slots × this is the worst-case wasted compute per
+    # wave, so keep it sane (10 min). The reaper backstop auto-tracks it (agent_timeout
+    # + 30). The big synthetic value (1800) was for the CPU-only eval, never the box.
+    agent_timeout: int = _int("AUTOREDUCE_AGENT_TIMEOUT", 600)
     agent_max_turns: int = _int("AUTOREDUCE_AGENT_MAX_TURNS", 24)
     agent_max_budget_usd: float = float(
-        os.environ.get("AUTOREDUCE_AGENT_MAX_BUDGET_USD", "0.50"))
+        os.environ.get("AUTOREDUCE_AGENT_MAX_BUDGET_USD", "0.75"))
 
     # optional: append every planner LLM call (digest in, hypotheses out) to this
     # JSONL file. Off by default → zero behavior change; instrumentation only.

@@ -455,10 +455,38 @@ def recent_followups(conn: sqlite3.Connection, run_id: int,
     return [r["followup"] for r in rows]
 
 
+def best_progress(conn: sqlite3.Connection, run_id: int, direction: str,
+                  window: int = 8) -> tuple[float | None, list[float]]:
+    """Frontier curve: the running-best metric after each done idea, in completion
+    order. Lets the planner SEE whether the best score has stalled vs. is moving —
+    a flat tail means exploitation has plateaued.
+    """
+    rows = conn.execute(
+        """SELECT metric FROM ideas
+           WHERE run_id=? AND status='done' AND metric IS NOT NULL
+           ORDER BY finished_at ASC, id ASC""",
+        (run_id,),
+    ).fetchall()
+    if not rows:
+        return None, []
+    improves = (lambda m, b: m > b) if direction == "maximize" else (lambda m, b: m < b)
+    best = rows[0]["metric"]
+    running: list[float] = []
+    for r in rows:
+        m = r["metric"]
+        if improves(m, best):
+            best = m
+        running.append(round(best, 4))
+    return round(best, 4), running[-window:]
+
+
 def read_digest(conn: sqlite3.Connection, run_id: int) -> dict[str, Any]:
     run = get_run(conn, run_id)
     direction = run["direction"] if run else "maximize"
+    best_metric, best_trajectory = best_progress(conn, run_id, direction)
     return {
+        "best_metric": best_metric,
+        "best_trajectory": best_trajectory,
         "top_ideas": top_ideas(conn, run_id, direction),
         "tried_hypotheses": tried_hypotheses(conn, run_id),
         "followups": recent_followups(conn, run_id),
