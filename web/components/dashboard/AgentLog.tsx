@@ -12,7 +12,9 @@ export function AgentLog({ lines }: { lines: string[] }) {
           lines.map((line, i) => (
             <div
               key={i}
-              className={line.startsWith("✓") || line.startsWith("▶") ? "text-ink" : "text-mute"}
+              className={
+                /^[✓▶💡⚙]/.test(line) ? "text-ink" : "text-mute"
+              }
             >
               {line}
             </div>
