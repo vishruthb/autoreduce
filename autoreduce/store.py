@@ -686,7 +686,7 @@ def _report_experiment_result_txn(
             """UPDATE experiments SET status=?, metric=?, error=?, finished_at=?,
                                       method_diff=?, followup=?, baseline_metric=?
                WHERE id=? AND status='running'
-               RETURNING run_id, idea_id, lease_id""",
+               RETURNING run_id, idea_id, lease_id, phase""",
             (
                 final_status,
                 metric,
@@ -702,25 +702,26 @@ def _report_experiment_result_txn(
             conn.execute("COMMIT")
             return {"accepted": False, "reason": "not_running"}
 
-        conn.execute(
-            """UPDATE ideas SET status=?, metric=?, error=?, finished_at=?,
-                                method_diff=?, followup=?, baseline_metric=?
-               WHERE id=? AND status='running'""",
-            (
-                final_status,
-                metric,
-                error,
-                now,
-                method_diff,
-                followup,
-                baseline,
-                row["idea_id"],
-            ),
-        )
-        conn.execute(
-            "UPDATE agent_leases SET status='done' WHERE idea_id=? AND status='busy'",
-            (row["idea_id"],),
-        )
+        if row["phase"] in ("default", "finalize"):
+            conn.execute(
+                """UPDATE ideas SET status=?, metric=?, error=?, finished_at=?,
+                                    method_diff=?, followup=?, baseline_metric=?
+                   WHERE id=? AND status='running'""",
+                (
+                    final_status,
+                    metric,
+                    error,
+                    now,
+                    method_diff,
+                    followup,
+                    baseline,
+                    row["idea_id"],
+                ),
+            )
+            conn.execute(
+                "UPDATE agent_leases SET status='done' WHERE idea_id=? AND status='busy'",
+                (row["idea_id"],),
+            )
         if row["lease_id"] is not None:
             conn.execute(
                 """UPDATE gpu_leases SET status='done', heartbeat_at=?
@@ -966,6 +967,8 @@ def read_digest(conn: sqlite3.Connection, run_id: int) -> dict[str, Any]:
 
 
 def scale_curves(conn: sqlite3.Connection, run_id: int) -> list[dict[str, Any]]:
+    run = get_run(conn, run_id)
+    direction = run["direction"] if run is not None else "maximize"
     rows = conn.execute(
         """SELECT e.idea_id, i.config_json, e.resource_shape_json,
                   e.workload_shape_json, e.metric
@@ -975,9 +978,11 @@ def scale_curves(conn: sqlite3.Connection, run_id: int) -> list[dict[str, Any]]:
         (run_id,),
     ).fetchall()
     by_idea: dict[int, dict[str, Any]] = {}
+    by_gpu: dict[tuple[int, int], dict[str, Any]] = {}
     for r in rows:
         shape = json.loads(r["resource_shape_json"])
         workload = json.loads(r["workload_shape_json"])
+        gpu_count = int(shape.get("gpu_count", 1))
         item = by_idea.setdefault(
             r["idea_id"],
             {
@@ -986,11 +991,24 @@ def scale_curves(conn: sqlite3.Connection, run_id: int) -> list[dict[str, Any]]:
                 "points": [],
             },
         )
-        item["points"].append({
-            "gpu_count": shape.get("gpu_count", 1),
+        point = {
+            "gpu_count": gpu_count,
             "metric": r["metric"],
             **workload,
-        })
+        }
+        existing = by_gpu.get((r["idea_id"], gpu_count))
+        better = (
+            r["metric"] > existing["metric"]
+            if direction == "maximize"
+            else r["metric"] < existing["metric"]
+        ) if existing is not None else True
+        if better:
+            if existing is not None:
+                item["points"].remove(existing)
+            by_gpu[(r["idea_id"], gpu_count)] = point
+            item["points"].append(point)
+    for item in by_idea.values():
+        item["points"].sort(key=lambda p: p.get("gpu_count", 1))
     return list(by_idea.values())
 
 
