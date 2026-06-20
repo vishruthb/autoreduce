@@ -366,12 +366,10 @@ export default function DocsPage() {
                 Agents do not own GPUs. They think, write code, and prepare benchmarkable methods.
                 GPUs are only used when a benchmark runs.
               </p>
-              <div className="mt-lg">
-                <AgentElasticityChart />
-              </div>
-              <p className="mt-lg text-caption-sm text-mute">
-                Agent concurrency scales with available measurement capacity, not one-to-one with
-                GPUs.
+              <p className="mt-lg border-t border-hairline pt-md text-body-sm text-charcoal">
+                With one GPU, several agents can prepare candidates while measurement happens
+                serially. With more GPUs, agent concurrency rises until the benchmark queue stays
+                full without getting stale.
               </p>
             </article>
 
@@ -381,12 +379,9 @@ export default function DocsPage() {
                 Some ideas need more than one GPU to be measured correctly. Autoreduce can allocate
                 1/2/4/8 GPU bundles to promising experiments and build scale curves.
               </p>
-              <div className="mt-lg">
-                <AllocationVisual />
-              </div>
-              <p className="mt-lg text-caption-sm text-mute">
-                The scheduler trades breadth for fidelity when the planner detects a scale-sensitive
-                idea.
+              <p className="mt-lg border-t border-hairline pt-md text-body-sm text-charcoal">
+                The scheduler trades breadth for fidelity: many one-GPU tests early, then 2/4/8-GPU
+                probes only when the planner needs a scale measurement.
               </p>
             </article>
           </div>
