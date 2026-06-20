@@ -137,6 +137,13 @@ const SUMMARY = [
   ["Hybrid adaptive + KV-aware batching", "1.21x", "1.27x", "1.31x", "1.30x", "best general method"],
 ];
 
+const BASELINES = [
+  ["Autoregressive decoding", "1.00x", "baseline", "reference path"],
+  ["Fixed draft-length batching", "1.04x", "+4%", "simple batching baseline"],
+  ["Best one-GPU policy", "1.21x", "+21%", "under p95 guardrail"],
+  ["Best scaled policy", "1.31x", "+31%", "best at 4 of 8 GPUs"],
+];
+
 const SOURCES = [
   ["Speculative Decoding", "https://arxiv.org/abs/2211.17192"],
   ["Speculative Sampling", "https://arxiv.org/abs/2302.01318"],
@@ -200,6 +207,40 @@ function ScaleCurve({
   );
 }
 
+function ComparisonTable({
+  rows,
+}: {
+  rows: string[][];
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-body-sm">
+          <thead className="bg-surface-soft text-caption-sm uppercase tracking-[0.12em] text-mute">
+            <tr>
+              <th className="px-md py-sm font-normal">Reference</th>
+              <th className="px-md py-sm font-normal">Metric</th>
+              <th className="px-md py-sm font-normal">Gain</th>
+              <th className="px-md py-sm font-normal">Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row[0]} className="border-t border-hairline">
+                {row.map((cell, index) => (
+                  <td key={`${row[0]}-${index}`} className={index === 0 ? "px-md py-sm text-ink" : "px-md py-sm text-body"}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function CaseStudiesPage() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-56px)] max-w-dash flex-col px-lg">
@@ -242,6 +283,20 @@ export default function CaseStudiesPage() {
           <MetricCard label="GPU pool" value="8 H100" body="The run starts with eight H100 slots available to the scheduler." />
           <MetricCard label="best scaled point" value="1.31x" body="Hybrid policy at 4 GPUs before p95 latency degraded." />
           <MetricCard label="planner decision" value="4 of 8" body="The 8-GPU probe flattened, so the planner returned capacity to search." />
+        </section>
+
+        <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
+          <div>
+            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+              baseline comparison
+            </p>
+            <h2 className="mt-sm text-display-lg text-ink">What did it beat?</h2>
+            <p className="mt-md text-body-md text-body">
+              The metric is speedup over normal autoregressive decoding. A result is useful only if
+              it beats the baseline while staying inside the p95 latency guardrail.
+            </p>
+          </div>
+          <ComparisonTable rows={BASELINES} />
         </section>
 
         <section className="mt-xl">
@@ -336,6 +391,30 @@ export default function CaseStudiesPage() {
               autoresearch: do not judge every algorithm only under the cheapest resource regime.
             </p>
           </div>
+        </section>
+
+        <section className="mt-section grid gap-md lg:grid-cols-3">
+          <article className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Useful result</h3>
+            <p className="mt-md text-body-sm text-body">
+              The best policy improved throughput by 31% over autoregressive decoding while staying
+              under the latency target at the 4-GPU point.
+            </p>
+          </article>
+          <article className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Research signal</h3>
+            <p className="mt-md text-body-sm text-body">
+              A weak one-GPU idea became useful only when candidate generation was parallelized. A
+              normal one-GPU search would have likely discarded it.
+            </p>
+          </article>
+          <article className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Scaling decision</h3>
+            <p className="mt-md text-body-sm text-body">
+              The 8-GPU point did not justify its cost. Autoreduce learned where the method stopped
+              being worth scaling.
+            </p>
+          </article>
         </section>
 
         <section className="mt-section">
