@@ -14,42 +14,42 @@ export function TopologyPanel({
 
   const agents = resources.agent_stats;
   const gpu = resources.gpu_stats;
-  const mode = gpu.total_gpus === 0 ? "waiting" : "decoupled";
+  const mode = gpu.total_gpus === 0 ? "waiting" : "queue mode";
   const complete = run.state === "done";
 
   return (
     <Card className="p-lg">
       <div className="mb-md flex items-baseline justify-between">
-        <h2 className="text-heading-sm text-ink">Execution topology</h2>
+        <h2 className="text-heading-sm text-ink">Run flow</h2>
         <span className="font-mono text-code-sm text-mute">{mode}</span>
       </div>
 
       <div className="grid gap-md md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-center">
         <Stage
-          title="Agent layer"
+          title="Agents"
           value={
             complete
               ? `${agents.active_agents} active`
               : `${agents.active_agents} / ${agents.target_agents ?? "-"} active`
           }
-          detail={complete ? "budget complete" : "thinking + writing"}
+          detail={complete ? "run complete" : "working"}
         />
         <Arrow />
         <Stage
-          title="Benchmark queue"
+          title="Queue"
           value={`${gpu.queued_jobs} queued`}
-          detail={complete ? "no active jobs" : `${gpu.running_jobs} running jobs`}
+          detail={complete ? "done" : `${gpu.running_jobs} running`}
         />
         <Arrow />
         <Stage
-          title="GPU execution"
+          title="GPUs"
           value={`${gpu.busy_gpus} / ${gpu.total_gpus} busy`}
-          detail={`${gpu.free_gpus} free slots`}
+          detail={`${gpu.free_gpus} free`}
         />
       </div>
 
       <div className="mt-md text-caption-sm text-mute">
-        budget {run.budget_spent} / {run.budget_total}
+        budget used {run.budget_spent} / {run.budget_total}
       </div>
     </Card>
   );

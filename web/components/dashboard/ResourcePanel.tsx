@@ -13,13 +13,13 @@ export function ResourcePanel({ resources }: { resources?: ResourceState }) {
   return (
     <Card className="p-lg">
       <div className="mb-md flex items-baseline justify-between">
-        <h2 className="text-heading-sm text-ink">Resource allocation</h2>
+        <h2 className="text-heading-sm text-ink">Resources</h2>
         <span className="font-mono text-code-sm text-mute">{pct}% GPU util</span>
       </div>
 
       <div className="grid gap-md sm:grid-cols-4">
         <Stat
-          label="agents active / target"
+          label="agents"
           value={`${agents.active_agents} / ${agents.target_agents ?? "-"}`}
         />
         <Stat label="running jobs" value={gpu.running_jobs} />
