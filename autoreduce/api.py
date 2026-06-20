@@ -11,10 +11,10 @@ import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import bench, db, events, store
+from . import bench, db, events, report, store
 from .config import settings
 
 router = APIRouter()
@@ -119,8 +119,8 @@ async def read_digest() -> dict[str, Any]:
     async with db.STATE_LOCK:
         run = store.active_run(db.conn())
         if run is None:
-            return {"top_ideas": [], "tried_hypotheses": [], "followups": [],
-                    "queue_depth": 0}
+            return {"best_metric": None, "best_trajectory": [], "top_ideas": [],
+                    "tried_hypotheses": [], "followups": [], "queue_depth": 0}
         return store.read_digest(db.conn(), run["id"])
 
 
@@ -188,6 +188,40 @@ async def create_run(body: RunBody) -> dict[str, Any]:
         )
     events.broker.publish_snapshot()
     return {"run_id": run_id}
+
+
+async def _resolve_report(run_id: int | None) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        conn = db.conn()
+        if run_id is None:
+            run = store.latest_run(conn)
+            if run is None:
+                raise HTTPException(status_code=404, detail="no runs yet")
+            run_id = run["id"]
+        try:
+            return report.build_report(conn, run_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/report")
+async def latest_report() -> dict[str, Any]:
+    return await _resolve_report(None)
+
+
+@router.get("/report.md", response_class=PlainTextResponse)
+async def latest_report_md() -> str:
+    return report.render_markdown(await _resolve_report(None))
+
+
+@router.get("/runs/{run_id}/report")
+async def run_report(run_id: int) -> dict[str, Any]:
+    return await _resolve_report(run_id)
+
+
+@router.get("/runs/{run_id}/report.md", response_class=PlainTextResponse)
+async def run_report_md(run_id: int) -> str:
+    return report.render_markdown(await _resolve_report(run_id))
 
 
 @router.post("/reset")

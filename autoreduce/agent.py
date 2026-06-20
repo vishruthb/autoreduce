@@ -222,6 +222,25 @@ def _make_bench_server(workspace: str, record: dict[str, Any], cvd: str | None,
                                  tools=[run_benchmark, submit])
 
 
+def _stream_activity(msg: Any, on_log: OnLog) -> None:
+    """Surface the agent's own steps (assistant text + tool calls) to the live
+    log so the UI's expanded worker shows what it is actually doing. Duck-typed
+    so it tolerates whatever block shapes the SDK yields."""
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return
+    for block in content:
+        text = getattr(block, "text", None)
+        if isinstance(text, str) and text.strip():
+            snippet = " ".join(text.split())[:160]
+            on_log(f"› {snippet}")
+            continue
+        name = getattr(block, "name", None)
+        if isinstance(name, str) and name:
+            short = name.replace("mcp__bench__", "")
+            on_log(f"⚙ {short}")
+
+
 async def run_agent_session(*, task: Task, workspace: str, hypothesis: str,
                             digest: dict[str, Any], cvd: str | None,
                             on_log: OnLog) -> AgentResult:
@@ -255,8 +274,8 @@ async def run_agent_session(*, task: Task, workspace: str, hypothesis: str,
                "parent_tool_use_id": None}
 
     try:
-        async for _msg in query(prompt=_prompt_stream(), options=options):
-            pass  # the agent drives itself via tools; logging happens inside them
+        async for msg in query(prompt=_prompt_stream(), options=options):
+            _stream_activity(msg, on_log)
     except Exception as exc:  # noqa: BLE001 — max-turns/budget/SDK error: still measure
         on_log(f"session ended: {str(exc)[:120]}")
 
