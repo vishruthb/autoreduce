@@ -34,12 +34,16 @@ function LiveIndicator() {
 export function TopBar() {
   const pathname = usePathname();
   const onDashboard = pathname?.startsWith("/dashboard") ?? false;
+  const onWidePage =
+    onDashboard ||
+    (pathname?.startsWith("/how-it-works") ?? false) ||
+    (pathname?.startsWith("/case-studies") ?? false);
 
   return (
     <header className="w-full">
       <div
         className={`mx-auto px-lg transition-[max-width] duration-500 ease-in-out ${
-          onDashboard ? "max-w-dash" : "max-w-content"
+          onWidePage ? "max-w-dash" : "max-w-content"
         }`}
       >
         <nav className="flex h-14 items-center justify-between">
@@ -54,6 +58,9 @@ export function TopBar() {
               <div className="hidden items-center gap-xl text-body-sm-strong text-ink sm:flex">
                 <Link href="/how-it-works" className="hover:text-body">
                   How it works
+                </Link>
+                <Link href="/case-studies" className="hover:text-body">
+                  Case studies
                 </Link>
                 <a
                   href="https://github.com/vishruthb/autoreduce"

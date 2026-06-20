@@ -11,6 +11,7 @@ export default function Home() {
       </main>
       <footer className="flex flex-wrap items-center justify-center gap-x-xl gap-y-sm py-lg text-caption-sm text-body">
         <Link href="/how-it-works" className="hover:text-ink">How it works</Link>
+        <Link href="/case-studies" className="hover:text-ink">Case studies</Link>
         <a
           href="https://github.com/vishruthb/autoreduce"
           target="_blank"
