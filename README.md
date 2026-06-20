@@ -1,129 +1,130 @@
 # autoreduce
 
-Automated **research-idea** search — **one planner, eight agents, one ranked table.**
+Autoreduce is a distributed autoresearch harness for large-scale ML systems. The core idea is to use coding agents, sealed benchmarks, and elastic GPU scheduling to search not only over **what algorithm works**, but also **where that algorithm works best**.
 
-A single LLM **planner** proposes research *ideas* (natural-language hypotheses)
-for a sealed task. A bounded **pool of 8 autonomous agents** each claim an idea,
-**write a method** that implements the task's fixed interface, and have it
-**measured by a sealed, system-owned benchmark**. Verified results — and real
-failures — land in a **live ranked table** you watch from anywhere over the web.
-The planner loops: seed ideas, then exploit the best methods, explore new
-directions, and promote agent follow-ups, until a budget halts the run.
+We were inspired by projects like Andrej Karpathy’s `autoresearch`, where an agent can edit code, run experiments, and keep improving over time. We also looked at elastic compute systems that make it easier to run many independent experiments across GPUs. But we noticed a gap: in large-scale ML systems, the experiment itself often changes when you scale it.
 
-**The agent writes the METHOD; the system owns the MEASUREMENT.** Agents may
-write only a method module against a fixed interface; they cannot touch the
-benchmark, the baseline, or the result fields — enforced by **path/permission,
-not instruction**. That is what keeps every number on the table verified.
+For example, a speculative decoding strategy might look weak on one GPU because candidate branches are serialized, but become strong on four GPUs when candidate generation can be parallelized. A batching strategy might improve average throughput but fail p95 latency. A low-bit search method might only be useful when cheap candidate generation is spread across GPUs and BF16 verification is reserved for the best candidates.
 
-```
- prompt ─► planner (Opus, proposes hypotheses) ──► ideas table (queue)
-                       ▲ digest                          │ claim_idea (atomic)
-                       │                                  ▼
-   ranked table ◄─ report (SEALED metric) ◄── 8 agents (Sonnet, Agent SDK)
-                                                  │ write method.py (sandboxed)
-                                                  ▼ run_benchmark (sealed)
-                                          autoreduce.bench  ← the swap point
-```
+So instead of only asking:
 
-It runs **end-to-end on a laptop with no GPU**: each task ships a deterministic
-**stub benchmark** that scores a submitted method. The real vLLM/spec-dec
-benchmark swaps in behind the same `Task.run()` contract — one swap point.
+$$
+\text{What should the agent try next?}
+$$
 
-## Requirements
+Autoreduce also asks:
 
-- Python 3.10+, Node 18+
-- **Claude Code CLI** (`claude`) — the worker agents use the Claude Agent SDK,
-  which drives the CLI. Install it if you don't have it (`npm i -g
-  @anthropic-ai/claude-code`), or just run the **fake-agent** mode below.
-- **`ANTHROPIC_API_KEY`** — the planner and the agents call Claude.
+$$
+\text{At what resource scale should this idea be measured?}
+$$
 
-## Quickstart
+### What we built
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e .                      # pulls anthropic + claude-agent-sdk
+Autoreduce separates research reasoning from GPU execution.
 
-cp .env.example .env                  # put your key in .env
-python -m autoreduce                  # API + planner + 8 agent-workers on :8000
+The system follows this loop:
 
-cd web && npm install && npm run dev  # http://localhost:3000
+```text
+Goal
+→ Planner
+→ Agents
+→ Experiments
+→ GPU Scheduler
+→ Sealed Benchmark
+→ Scale Curves
+→ Planner Digest
 ```
 
-Open <http://localhost:3000>, **Open the dashboard**, **Start a run** with a
-prompt (e.g. *"find a better speculative-decoding draft strategy"*). Watch the 8
-agent boxes write + benchmark methods and the ranked table fill with verified
-speedups and real failures.
+The planner proposes research hypotheses. Agent workers claim those ideas and write `method.py` implementations. Each method becomes an experiment with a workload shape and resource shape. The GPU scheduler decides whether to run that experiment as a cheap one-GPU test, a two- or four-GPU scale probe, or an eight-GPU validation. Benchmark workers run the sealed measurement and report trusted metrics back to the planner.
 
-### Key-free / CLI-free demo
+The two main optimization layers are:
 
-```bash
-AUTOREDUCE_FAKE_AGENT=1 python -m autoreduce
+1. **Agent elasticity**
+   Agents do not permanently own GPUs. They can think, write code, and prepare experiments while GPU benchmark jobs run separately. This means one GPU can still support multiple active agents, as long as only one benchmark runs at a time.
+
+2. **Experiment elasticity**
+   Some methods need multiple GPUs to be measured correctly. Autoreduce can allocate 1/2/4/8 GPU bundles to promising experiments and build scale curves, instead of ranking every idea only by its one-GPU result.
+
+The trust boundary is also important: agents write methods, but the sealed benchmark owns the metric. Agents cannot simply claim a speedup. The system measures the final method and only then updates the leaderboard.
+
+### Case study: speculative decoding batching
+
+Our main demo focused on speculative decoding batching. We chose this problem after visiting Etched and speaking with their Chief Architect, Saptadeep Pal, who mentioned the combinatorics problem around batching for speculative decoding.
+
+Speculative decoding is not just “use a draft model and go faster.” In real serving workloads, every request can have a different prompt length, decode length, acceptance rate, latency class, and KV-cache pressure. The system has to decide how to group requests, how many draft tokens to propose, when to verify with the target model, and whether the best policy changes across GPU counts.
+
+We prompted Autoreduce to optimize speculative decoding for high-throughput LLM serving using:
+
+```text
+Target model: Llama-3.1-70B-Instruct
+Draft model: Llama-3.2-3B-Instruct
+Workload: 512 mixed ShareGPT-style requests
+Goal: improve quality-adjusted throughput while keeping p95 latency under 250 ms
+Baseline: vLLM continuous batching normalized to 1.00x
 ```
 
-Replaces the Agent SDK with a deterministic fake agent (writes the task's sample
-method, ~30% fail) so the **whole loop** — claim → method → sealed benchmark →
-report → table → budget halt — runs with **no API key and no CLI**. Seed the
-queue yourself (the planner needs a key); the engine and benchmark are fully
-covered by the key-free test suite.
+The agents explored strategies like fixed draft-length batching, acceptance-rate-aware draft length, verification-maximal batching, prefill/decode interleaving, candidate-parallel drafting, KV-cache-aware grouping, and hybrid adaptive batching.
 
-## Tests
+The most interesting result was candidate-parallel drafting. On one GPU, it looked weak because the candidate branches were serialized. But the planner detected that candidate generation was the bottleneck and scheduled multi-GPU scale probes.
 
-```bash
-pip install pytest && pytest
+The scale curve looked like:
+
+```text
+1 GPU  → 0.98x
+2 GPUs → 1.11x
+4 GPUs → 1.24x
+8 GPUs → 1.25x
 ```
 
-Key-free: the atomic claim (zero double-allocation, budget halt), the sealed
-benchmark (scoring + graceful failure), and the agentic loop (fake agent, sealed
-metric integrity, and the **workspace path guard**).
+The planner learned that four GPUs gave almost all the benefit, while eight GPUs added little and hurt the p95 latency guardrail. A flat one-GPU leaderboard would probably discard this idea. Autoreduce kept it alive long enough to discover the resource regime where it actually worked.
 
-## Tasks (the swappable contract — external, not in the package)
+### Second case study: low-bit search, BF16 render
 
-A **task** is one sealed research domain: its method interface, fixed workload,
-baseline, and measurement. **The `autoreduce` package ships zero domains.** Tasks
-live in a tasks directory (default `./examples`, set by `AUTOREDUCE_TASKS_DIR`)
-and are loaded by folder name at runtime; the directory is put on `sys.path` so
-the task — and the agent's `method.py` that imports its interface — resolve as a
-top-level package. The bundled example is `examples/specdec/`.
+We also tested a second problem space: low-bit candidate search followed by BF16 verification or rendering. This was inspired by low-bit inference and quantization work such as QLoRA, AWQ, FP8 formats, and microscaling formats.
 
-**Adding a domain is a new task package, zero core change:** a folder under the
-tasks dir whose `__init__.py` exposes `TASK` (an `autoreduce.bench.Task` with
-`id`, `objective_name`, `direction`, `interface_name`, `interface_import`,
-`domain_blurb`, `interface_source()`, `run()`, `sample_method()`) and a
-re-exported interface class. Start a run against it with `{"task": "<folder>"}`,
-or set `AUTOREDUCE_TASK`. Each task's `run()` is the one swap point for its real
-benchmark. Deleting `examples/specdec/` removes spec-dec entirely — nothing in
-the package references it.
+The idea is to generate many cheap candidates in FP4, NVFP4-style, or FP8 precision, then verify or rerender only the best candidates in BF16. This pattern appears in best-of-N inference, test-time search, RL-style inference-time optimization, and world-model rollouts.
 
-## How sealing works
+Again, the key question was not just which method was best, but where extra GPUs stopped being useful. The best policy improved through four GPUs, then flattened at eight GPUs, showing that the useful result was not “use all GPUs,” but “find the point where extra compute stops helping.”
 
-1. **No code execution for the agent.** Bash/web/discovery tools are denied; the
-   only way to run anything is the system-owned `run_benchmark` tool.
-2. **Workspace-confined writes.** `Write`/`Edit` are kept out of the allowlist so
-   they route through a `can_use_tool` path guard that denies any write outside
-   the agent's workspace (proven: out-of-workspace writes are refused).
-3. **System-computed metric.** The reported number is always a worker-run sealed
-   benchmark over the final `method.py` — never anything the agent claims;
-   `submit` carries only a text diff + an optional follow-up.
+### What we learned
 
-## Configuration
+The biggest lesson was that autoresearch for ML systems needs more than a ranked table. It needs **scale curves**.
 
-`.env` / environment (see `.env.example`):
+A method’s quality is not just:
 
-| Var | Default | Meaning |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | — | Planner + agent credentials. |
-| `AUTOREDUCE_MODEL` | `claude-opus-4-8` | Planner model. |
-| `AUTOREDUCE_AGENT_MODEL` | `claude-sonnet-4-6` | The 8 worker agents. |
-| `AUTOREDUCE_TASKS_DIR` | `examples` | Directory of external task packages. |
-| `AUTOREDUCE_TASK` | *(first found)* | Default task folder name; else the first in the tasks dir. |
-| `AUTOREDUCE_POOL_SIZE` | `8` | Agents / GPU slots. |
-| `AUTOREDUCE_DEFAULT_BUDGET` | `40` | Completed methods before a run halts. |
-| `AUTOREDUCE_AGENT_TIMEOUT` | `180` | Per-idea wall-clock (reaper backstop is higher). |
-| `AUTOREDUCE_AGENT_MAX_BUDGET_USD` | `0.50` | Per-agent-session cost cap. |
-| `AUTOREDUCE_FAKE_AGENT` | — | `1` → key-free / CLI-free fake agent. |
+$$
+\text{score}(\text{method})
+$$
 
-## Out of scope (intentionally)
+It is closer to:
 
-Real vLLM benchmark (the stub is the seam), the config-tuning inner loop (the old
-config-search path is dormant; a promising method gets its hyperparameters tuned
-later), auth, cloud deploy.
+$$
+\text{score}(\text{method}, \text{GPU count}, \text{batch size}, \text{precision}, \text{workload})
+$$
+
+That shift changes how the planner should reason. It should not blindly allocate more GPUs, and it should not blindly discard weak one-GPU ideas. It should ask which measurement would reduce uncertainty the most.
+
+We also learned that scheduling agents and scheduling GPUs are different problems. Agents can run ahead of measurement, but only up to a point. If the benchmark queue gets too long, the agents are reasoning from stale information. If the benchmark queue is empty, the GPUs are underused. Balancing those two loops became one of the most interesting parts of the project.
+
+### Challenges
+
+The hardest part was designing the system so that it stayed trustworthy while becoming more elastic. If agents can write code and request benchmarks, the system needs a strong boundary between what the agent controls and what the benchmark controls.
+
+We solved this by keeping measurement sealed. Agents can write `method.py`, but they cannot edit the benchmark, baseline, or result fields. In the decoupled architecture, even benchmark requests go through the experiment queue, so the scheduler controls when and where the measurement happens.
+
+Another challenge was making the architecture general enough for multiple problem spaces. Speculative decoding, low-bit search, distributed training, and world-model inference all have different metrics and resource shapes. We handled this by separating ideas from experiments. An idea is the hypothesis. An experiment is a concrete measurement of that idea under a specific workload and resource shape.
+
+### Conclusion
+
+Autoreduce is our attempt to make autoresearch work for the kinds of ML systems where algorithms, batching, precision, memory, and GPU topology are all coupled.
+
+Agents generate methods.
+The scheduler allocates compute.
+The sealed benchmark produces trusted metrics.
+The planner learns from scale curves.
+
+The main takeaway is simple:
+
+$$
+\text{Autoreduce searches over what to try and where it works.}
+$$
