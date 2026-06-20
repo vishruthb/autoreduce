@@ -225,9 +225,9 @@ export default function LowBitBf16CaseStudyPage() {
         </section>
 
         <section className="mt-section grid gap-md md:grid-cols-3">
-          <MetricCard label="best one-GPU reward" value="0.739" body="Cheap-first VLM top-k gave the highest one-GPU quality." />
-          <MetricCard label="best 4-GPU reward" value="0.771" body="The best reward came from 4-GPU VLM top-k, but verifier cost dominated." />
-          <MetricCard label="planner decision" value="4 GPU" body="Validate at 4 GPUs and return 8-GPU capacity to broad search." />
+          <MetricCard label="GPU pool" value="8 H100" body="The run starts with eight H100 slots available to the scheduler." />
+          <MetricCard label="best reward" value="0.771" body="The best reward came from 4-GPU VLM top-k, but verifier cost dominated." />
+          <MetricCard label="planner decision" value="4 of 8" body="The 8-GPU probe flattened, so the planner returned capacity to search." />
         </section>
 
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">

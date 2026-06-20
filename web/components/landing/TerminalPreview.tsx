@@ -16,7 +16,7 @@ const LINES: { text: string; tone: "mute" | "ink" }[] = [
   { text: "agents       active 12       benchmark jobs 8 running", tone: "ink" },
   { text: "scheduler    wide -> mixed   4 x 1-GPU + 1 x 4-GPU probe", tone: "ink" },
   { text: "scale curve  candidate-parallel drafting   1.06x -> 1.41x", tone: "ink" },
-  { text: "planner      validate at 4 GPU · return extra capacity to search", tone: "mute" },
+  { text: "planner      8-GPU probe flat · use 4-GPU point · keep searching", tone: "mute" },
 ];
 
 export function TerminalPreview() {

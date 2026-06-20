@@ -239,9 +239,9 @@ export default function CaseStudiesPage() {
         </section>
 
         <section className="mt-section grid gap-md md:grid-cols-3">
-          <MetricCard label="best 1 GPU" value="1.21x" body="Hybrid adaptive draft length plus KV-cache-aware batching." />
+          <MetricCard label="GPU pool" value="8 H100" body="The run starts with eight H100 slots available to the scheduler." />
           <MetricCard label="best scaled point" value="1.31x" body="Hybrid policy at 4 GPUs before p95 latency degraded." />
-          <MetricCard label="planner action" value="4 GPU" body="Validate scale-sensitive methods at 4 GPUs, return 8-GPU capacity to search." />
+          <MetricCard label="planner decision" value="4 of 8" body="The 8-GPU probe flattened, so the planner returned capacity to search." />
         </section>
 
         <section className="mt-xl">

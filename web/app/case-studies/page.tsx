@@ -16,9 +16,9 @@ const CASE_STUDIES = [
     body:
       "An 8 H100 run where Autoreduce searches request grouping, adaptive draft length, KV-aware batching, and multi-GPU candidate parallelism.",
     stats: [
-      ["best 1 GPU", "1.21x"],
+      ["GPU pool", "8 H100"],
       ["best scaled", "1.31x"],
-      ["decision", "4 GPU"],
+      ["best point", "4 of 8"],
     ],
   },
   {
@@ -28,9 +28,9 @@ const CASE_STUDIES = [
     body:
       "A diffusion inference-time scaling run where low-bit candidate search feeds BF16 rerenders and the planner learns where 8 GPUs stop paying off.",
     stats: [
-      ["best 1 GPU", "0.739"],
+      ["GPU pool", "8 H100"],
       ["best scaled", "0.771"],
-      ["decision", "4 GPU"],
+      ["best point", "4 of 8"],
     ],
   },
 ];
