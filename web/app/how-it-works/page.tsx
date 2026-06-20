@@ -522,8 +522,8 @@ export default function DocsPage() {
         <section className="mt-section" id="case-studies">
           <SectionHeading
             eyebrow="case studies"
-            title="Run narratives"
-            body="Each case study has its own link and shows how the planner moves from broad search to scale probes."
+            title="Case studies"
+            body="Two demo runs showing the loop on speculative decoding and low-bit diffusion inference."
           />
           <div className="mt-xl grid gap-md lg:grid-cols-2">
             {CASE_STUDIES.map((study) => (
@@ -541,33 +541,6 @@ export default function DocsPage() {
                 <p className="mt-md text-body-sm text-body">{study.body}</p>
               </Link>
             ))}
-          </div>
-        </section>
-
-        <section className="mt-section">
-          <div className="rounded-lg bg-surface-dark p-xxl text-on-dark">
-            <div className="grid gap-lg lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-              <div>
-                <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-on-dark-mute">
-                  trust boundary
-                </p>
-                <h2 className="mt-sm text-heading-lg text-on-dark">Measured, not claimed</h2>
-                <p className="mt-md text-body-md text-on-dark-mute">
-                  Agents write methods. The system owns measurement. Every result is produced by a
-                  sealed benchmark outside the agent's writable workspace. No agent-reported metrics
-                  enter the leaderboard.
-                </p>
-              </div>
-              <div className="rounded-md border border-hairline-strong bg-canvas p-md">
-                <pre className="font-mono text-code-sm leading-relaxed text-body">
-                  Agent Worker{"\n"}
-                  {"  "}writes method.py{"\n"}
-                  {"  "}{"->"} Experiment Queue{"\n"}
-                  {"  "}{"->"} Benchmark Worker{"\n"}
-                  {"  "}{"->"} Verified Metric
-                </pre>
-              </div>
-            </div>
           </div>
         </section>
 
