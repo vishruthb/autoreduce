@@ -10,7 +10,7 @@ export function Hero() {
       <p className="mt-lg font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
         Autoreduce
       </p>
-      <h1 className="mt-sm max-w-[820px] text-display-xl text-ink">
+      <h1 className="mt-md max-w-[620px] text-heading-lg text-ink">
         Distributed autoresearch.
       </h1>
       <p className="mt-md max-w-[720px] text-body-md text-body">
