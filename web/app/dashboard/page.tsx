@@ -8,6 +8,7 @@ import { PlannerBox } from "@/components/dashboard/PlannerBox";
 import { AgentPool } from "@/components/dashboard/AgentPool";
 import { RankedTable } from "@/components/dashboard/RankedTable";
 import { RunControls } from "@/components/dashboard/RunControls";
+import { ReportPanel } from "@/components/dashboard/ReportPanel";
 
 export default function DashboardPage() {
   const { snapshot, logs, connection } = useEventStream();
@@ -30,6 +31,8 @@ export default function DashboardPage() {
   const planner = snapshot?.planner ?? null;
   const active = run != null && (run.state === "running" || run.state === "draining");
   const showControls = !active;
+  const showReport =
+    run != null && (run.state === "done" || run.state === "draining");
 
   return (
     <main className="mx-auto max-w-dash px-lg py-xl">
@@ -59,6 +62,10 @@ export default function DashboardPage() {
           {showControls && <RunControls />}
 
           {planner && run && active && <PlannerBox planner={planner} run={run} />}
+
+          {showReport && run && (
+            <ReportPanel run={run} refreshKey={snapshot.stats.done} />
+          )}
 
           <AgentPool
             slots={snapshot.slots}

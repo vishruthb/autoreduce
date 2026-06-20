@@ -9,9 +9,11 @@ const ACTIVE = new Set(["designing", "seeding", "thinking"]);
 
 export function PlannerBox({ planner, run }: { planner: Planner; run: Run }) {
   const [expanded, setExpanded] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
   const arrow = planner.direction === "minimize" ? "↓" : "↑";
   const objective = planner.objective_name ?? "objective";
   const dotKind = ACTIVE.has(planner.status) ? "thinking" : "idle";
+  const longPrompt = run.prompt.length > 140;
 
   return (
     <section className="rounded-lg bg-surface-dark p-xxl text-on-dark">
@@ -25,9 +27,21 @@ export function PlannerBox({ planner, run }: { planner: Planner; run: Run }) {
         </span>
       </div>
 
-      <h2 className="mt-md line-clamp-2 text-heading-md text-on-dark">
+      <h2
+        className={`mt-md text-heading-md text-on-dark ${
+          promptOpen ? "whitespace-pre-wrap" : "line-clamp-2"
+        }`}
+      >
         {run.prompt}
       </h2>
+      {longPrompt && (
+        <button
+          onClick={() => setPromptOpen((v) => !v)}
+          className="mt-xs text-body-sm text-on-dark underline"
+        >
+          {promptOpen ? "show less" : "show full prompt"}
+        </button>
+      )}
 
       <div className="mt-xl">
         <BudgetBar spent={planner.budget_spent} total={planner.budget_total} />

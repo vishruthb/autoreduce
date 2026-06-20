@@ -51,7 +51,11 @@ export interface Idea {
   status: IdeaStatus;
   origin: Origin;
   metric_value: number | null;
+  baseline: number | null;
   rationale: string | null;
+  method_diff: string | null;
+  followup: string | null;
+  error: string | null;
   gpu_id: number | null;
   agent: string | null;
   rank: number | null;
@@ -141,6 +145,60 @@ export async function startRun(
 
 export async function cancelRun(runId: number): Promise<void> {
   await fetch(`${API_BASE}/runs/${runId}/cancel`, { method: "POST" });
+}
+
+// --- report ----------------------------------------------------------------
+
+export interface Finding {
+  id: number;
+  hypothesis: string;
+  origin: Origin;
+  status: IdeaStatus;
+  rationale: string | null;
+  metric: number | null;
+  baseline: number | null;
+  method_diff: string | null;
+  followup: string | null;
+  error: string | null;
+  duration_s: number | null;
+  rank: number | null;
+}
+
+export interface Report {
+  run: {
+    id: number;
+    prompt: string;
+    objective_name: string | null;
+    direction: Direction;
+    state: RunState;
+    model: string | null;
+    task_id: string;
+    budget_total: number;
+    budget_spent: number;
+    error: string | null;
+    created_at: number;
+  };
+  summary: {
+    total: number;
+    done: number;
+    failed: number;
+    running: number;
+    queued: number;
+    best_metric: number | null;
+    best_idea_id: number | null;
+    baseline: number | null;
+  };
+  findings: Finding[];
+  followups: string[];
+}
+
+export const reportMarkdownUrl = (runId: number): string =>
+  `${API_BASE}/runs/${runId}/report.md`;
+
+export async function getReport(runId: number): Promise<Report> {
+  const r = await fetch(`${API_BASE}/runs/${runId}/report`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`GET /runs/${runId}/report ${r.status}`);
+  return r.json();
 }
 
 export async function resetAll(): Promise<void> {

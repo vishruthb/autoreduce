@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { AgentLog } from "./AgentLog";
 import { OriginTag } from "./OriginTag";
-import { elapsedClock, summarizeConfig } from "@/lib/format";
+import { elapsedClock, hypothesisOf } from "@/lib/format";
 
 export function AgentBox({
   slot,
@@ -38,11 +38,14 @@ export function AgentBox({
     );
   }
 
+  const hypothesis = hypothesisOf(idea!.config);
+
   return (
     <Card className="min-h-[96px] p-lg">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between text-left"
+        title={open ? "collapse" : "expand to see what this worker is doing"}
       >
         <span className="flex items-center gap-sm">
           <span className="font-mono text-code-sm text-ink">GPU {slot.gpu_id}</span>
@@ -54,21 +57,26 @@ export function AgentBox({
         </span>
       </button>
 
-      <div className="mt-sm truncate font-mono text-code-sm text-charcoal">
-        {summarizeConfig(idea!.config)}
+      {/* the hypothesis this worker is implementing */}
+      <div
+        className={`mt-sm text-body-sm text-charcoal ${open ? "" : "line-clamp-2"}`}
+      >
+        {hypothesis}
       </div>
       <div className="mt-sm flex items-center gap-sm">
         <OriginTag origin={idea!.origin} />
-        <span className="text-mute">{open ? "▾" : "▸"}</span>
+        <span className="text-caption-sm text-mute">
+          {open ? "▾ hide work" : "▸ show work"}
+        </span>
       </div>
 
       {open && (
         <div className="mt-md space-y-md">
-          <pre className="overflow-auto rounded-md bg-surface-soft p-md font-mono text-code-sm text-ink">
-            {JSON.stringify(idea!.config, null, 2)}
-          </pre>
           {idea!.rationale && (
-            <p className="text-body-sm text-body">{idea!.rationale}</p>
+            <p className="text-body-sm text-body">
+              <span className="text-mute">why: </span>
+              {idea!.rationale}
+            </p>
           )}
           <AgentLog lines={logs} />
         </div>

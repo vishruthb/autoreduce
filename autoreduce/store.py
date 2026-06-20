@@ -542,7 +542,11 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
                 "status": r["status"],
                 "origin": r["origin"],
                 "metric_value": r["metric"],
+                "baseline": r["baseline_metric"],
                 "rationale": r["rationale"],
+                "method_diff": r["method_diff"],
+                "followup": r["followup"],
+                "error": r["error"],
                 "gpu_id": r["gpu_id"] if r["status"] == "running" else None,
                 "agent": (f"worker-{r['agent_id']}"
                           if r["status"] == "running" and r["agent_id"] is not None

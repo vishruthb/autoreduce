@@ -21,6 +21,14 @@ export function summarizeConfig(config: Record<string, unknown>): string {
     .join("  ");
 }
 
+/** The human-readable idea text: the NL hypothesis if present, else a config
+ *  summary. This is what an agent is "working on". */
+export function hypothesisOf(config: Record<string, unknown>): string {
+  const h = config?.hypothesis;
+  if (typeof h === "string" && h.trim()) return h;
+  return summarizeConfig(config);
+}
+
 function formatValue(v: unknown): string {
   if (typeof v === "number") {
     return Number.isInteger(v) ? String(v) : String(Number(v.toFixed(3)));
