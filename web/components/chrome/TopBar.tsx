@@ -57,7 +57,7 @@ export function TopBar() {
             <div className="flex items-center gap-xl">
               <div className="hidden items-center gap-xl text-body-sm-strong text-ink sm:flex">
                 <Link href="/how-it-works" className="hover:text-body">
-                  How it works
+                  Docs
                 </Link>
                 <Link href="/case-studies" className="hover:text-body">
                   Case studies

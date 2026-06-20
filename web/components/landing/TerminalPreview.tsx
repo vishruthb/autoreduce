@@ -1,23 +1,39 @@
 import { TrafficLights } from "@/components/ui/TrafficLights";
 
-const LINES: { text: string; tone: "mute" | "ink" }[] = [
-  { text: "$ python -m autoreduce", tone: "ink" },
-  { text: "# planner online · objective derived from your prompt · budget 40", tone: "mute" },
-  { text: "W0  busy   exploit   batched transform           1.58×  ★ best", tone: "ink" },
-  { text: "W1  busy   explore   memory-map + lazy parse     running 0:06", tone: "ink" },
-  { text: "W2  busy   exploit   background prefetch queue    1.42×", tone: "ink" },
-  { text: "W3  free   —", tone: "mute" },
-  { text: "...                                              23 / 40 evaluated", tone: "mute" },
-  { text: "# serving dashboard on http://localhost:8000", tone: "mute" },
+const FLOW = [
+  "Goal",
+  "Planner",
+  "Agents",
+  "Experiments",
+  "GPU Scheduler",
+  "Sealed Metrics",
+  "Scale Curves",
 ];
 
-/** The home page's only product preview — a static terminal-card mock of the
- *  pool, ranked table, and budget the live dashboard shows. */
+const LINES: { text: string; tone: "mute" | "ink" }[] = [
+  { text: "$ python -m autoreduce", tone: "ink" },
+  { text: "# 8 H100 pool · elastic agents · sealed benchmark queue", tone: "mute" },
+  { text: "agents       active 12       benchmark jobs 8 running", tone: "ink" },
+  { text: "scheduler    wide -> mixed   4 x 1-GPU + 1 x 4-GPU probe", tone: "ink" },
+  { text: "scale curve  candidate-parallel drafting   1.06x -> 1.41x", tone: "ink" },
+  { text: "planner      validate at 4 GPU · return extra capacity to search", tone: "mute" },
+];
+
 export function TerminalPreview() {
   return (
     <div className="rounded-lg border border-hairline bg-canvas p-lg">
       <TrafficLights />
-      <pre className="mt-md overflow-x-auto font-mono text-code-sm leading-relaxed">
+      <div className="mt-md flex flex-wrap items-center gap-sm">
+        {FLOW.map((step, index) => (
+          <div key={step} className="flex items-center gap-sm">
+            <span className="rounded-full border border-hairline-strong px-md py-xs text-body-sm text-ink">
+              {step}
+            </span>
+            {index < FLOW.length - 1 ? <span className="text-mute">-&gt;</span> : null}
+          </div>
+        ))}
+      </div>
+      <pre className="mt-lg overflow-x-auto font-mono text-code-sm leading-relaxed">
         {LINES.map((l, i) => (
           <div key={i} className={l.tone === "ink" ? "text-ink" : "text-mute"}>
             {l.text}
