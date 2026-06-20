@@ -244,6 +244,22 @@ export default function CaseStudiesPage() {
           <MetricCard label="planner action" value="4 GPU" body="Validate scale-sensitive methods at 4 GPUs, return 8-GPU capacity to search." />
         </section>
 
+        <section className="mt-xl">
+          <Link
+            href="/case-studies/low-bit-bf16"
+            className="block rounded-lg border border-hairline bg-canvas p-lg hover:border-hairline-strong hover:bg-surface-soft"
+          >
+            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+              next case study
+            </p>
+            <h2 className="mt-sm text-heading-md text-ink">FP4 Search, BF16 Render</h2>
+            <p className="mt-xs max-w-[720px] text-body-sm text-body">
+              See how Autoreduce searches over low-bit candidate generation, BF16 rerender budgets,
+              verifier routing, and 1/2/4/8 GPU scale probes for diffusion inference-time scaling.
+            </p>
+          </Link>
+        </section>
+
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
           <div>
             <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
