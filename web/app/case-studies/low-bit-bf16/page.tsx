@@ -230,6 +230,56 @@ export default function LowBitBf16CaseStudyPage() {
           <MetricCard label="selected point" value="4 GPUs" body="The 8-GPU probe barely moved reward, so extra slots returned to search." />
         </section>
 
+        <section className="mt-section grid gap-xl lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+            <div className="border-b border-hairline p-xl">
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                baselines
+              </p>
+              <h2 className="mt-sm text-heading-lg text-ink">BF16 best-of-N reference points</h2>
+            </div>
+            <DataTable rows={BASELINES} headers={["Method", "Reward", "Wall-clock", "GPU-sec"]} />
+          </div>
+          <div className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h3 className="text-heading-md text-ink">Why search over regimes?</h3>
+            <ul className="mt-md space-y-sm text-body-sm text-body">
+              {SEARCH_SPACE.map((item) => (
+                <li key={item}>- {item}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="mt-section">
+          <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                scale probes
+              </p>
+              <h2 className="mt-sm text-display-lg text-ink">Quality improved until 4 GPUs, then flattened</h2>
+            </div>
+            <p className="max-w-[520px] text-body-sm text-body">
+              A flat leaderboard says which method won. A scale curve says where it is worth
+              running.
+            </p>
+          </div>
+          <div className="mt-xl">
+            <LineChart />
+          </div>
+        </section>
+
+        <section className="mt-section">
+          <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+            <div className="border-b border-hairline p-xl">
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                multi-gpu summary
+              </p>
+              <h2 className="mt-sm text-heading-lg text-ink">Best point by method</h2>
+            </div>
+            <DataTable rows={SCALE_SUMMARY} headers={["Method", "1 GPU", "2 GPUs", "4 GPUs", "8 GPUs", "Best point"]} />
+          </div>
+        </section>
+
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
           <div>
             <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
@@ -274,26 +324,6 @@ export default function LowBitBf16CaseStudyPage() {
           </div>
         </section>
 
-        <section className="mt-section grid gap-xl lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
-            <div className="border-b border-hairline p-xl">
-              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-                baselines
-              </p>
-              <h2 className="mt-sm text-heading-lg text-ink">BF16 best-of-N reference points</h2>
-            </div>
-            <DataTable rows={BASELINES} headers={["Method", "Reward", "Wall-clock", "GPU-sec"]} />
-          </div>
-          <div className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">Why search over regimes?</h3>
-            <ul className="mt-md space-y-sm text-body-sm text-body">
-              {SEARCH_SPACE.map((item) => (
-                <li key={item}>- {item}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
         <section className="mt-section">
           <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
             <div>
@@ -321,36 +351,6 @@ export default function LowBitBf16CaseStudyPage() {
             <pre className="mt-md overflow-x-auto whitespace-pre-wrap font-mono text-code-sm leading-relaxed text-body">
               {LOG.join("\n")}
             </pre>
-          </div>
-        </section>
-
-        <section className="mt-section">
-          <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
-            <div>
-              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-                scale probes
-              </p>
-              <h2 className="mt-sm text-display-lg text-ink">Quality improved until 4 GPUs, then flattened</h2>
-            </div>
-            <p className="max-w-[520px] text-body-sm text-body">
-              A flat leaderboard says which method won. A scale curve says where it is worth
-              running.
-            </p>
-          </div>
-          <div className="mt-xl">
-            <LineChart />
-          </div>
-        </section>
-
-        <section className="mt-section">
-          <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
-            <div className="border-b border-hairline p-xl">
-              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-                multi-gpu summary
-              </p>
-              <h2 className="mt-sm text-heading-lg text-ink">Best point by method</h2>
-            </div>
-            <DataTable rows={SCALE_SUMMARY} headers={["Method", "1 GPU", "2 GPUs", "4 GPUs", "8 GPUs", "Best point"]} />
           </div>
         </section>
 

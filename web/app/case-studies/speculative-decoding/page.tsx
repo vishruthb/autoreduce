@@ -315,6 +315,63 @@ export default function CaseStudiesPage() {
           <ComparisonTable rows={BASELINES} />
         </section>
 
+        <section className="mt-section">
+          <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                scale probes
+              </p>
+              <h2 className="mt-sm text-display-lg text-ink">2/4/8 GPU curves</h2>
+            </div>
+            <p className="max-w-[500px] text-body-sm text-body">
+              The scheduler does not give every idea 8 GPUs. It probes only methods with strong
+              signal or a parallel bottleneck, then returns capacity to broad search when gains
+              flatten.
+            </p>
+          </div>
+          <div className="mt-xl space-y-md">
+            {SCALE_CURVES.map((curve) => (
+              <ScaleCurve key={curve.name} {...curve} />
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-section">
+          <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+            <div className="border-b border-hairline p-xl">
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                summary table
+              </p>
+              <h2 className="mt-sm text-heading-lg text-ink">Final results</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-body-sm">
+                <thead className="bg-surface-soft text-caption-sm uppercase tracking-[0.12em] text-mute">
+                  <tr>
+                    <th className="px-md py-sm font-normal">Method</th>
+                    <th className="px-md py-sm font-normal">1 GPU</th>
+                    <th className="px-md py-sm font-normal">2 GPU</th>
+                    <th className="px-md py-sm font-normal">4 GPU</th>
+                    <th className="px-md py-sm font-normal">8 GPU</th>
+                    <th className="px-md py-sm font-normal">Decision</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SUMMARY.map((row) => (
+                    <tr key={row[0]} className="border-t border-hairline">
+                      {row.map((cell, index) => (
+                        <td key={`${row[0]}-${index}`} className={index === 0 ? "px-md py-sm text-ink" : "px-md py-sm text-body"}>
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-xl grid gap-md lg:grid-cols-2">
           {CONTEXT.map(([title, body]) => (
             <article key={title} className="rounded-lg border border-hairline bg-canvas p-lg">
@@ -442,63 +499,6 @@ export default function CaseStudiesPage() {
               guardrail. The planner kept the 4-GPU point and used the rest for broad search.
             </p>
           </article>
-        </section>
-
-        <section className="mt-section">
-          <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
-            <div>
-              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-                scale probes
-              </p>
-              <h2 className="mt-sm text-display-lg text-ink">2/4/8 GPU curves</h2>
-            </div>
-            <p className="max-w-[500px] text-body-sm text-body">
-              The scheduler does not give every idea 8 GPUs. It probes only methods with strong
-              signal or a parallel bottleneck, then returns capacity to broad search when gains
-              flatten.
-            </p>
-          </div>
-          <div className="mt-xl space-y-md">
-            {SCALE_CURVES.map((curve) => (
-              <ScaleCurve key={curve.name} {...curve} />
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-section">
-          <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
-            <div className="border-b border-hairline p-xl">
-              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
-                summary table
-              </p>
-              <h2 className="mt-sm text-heading-lg text-ink">Final results</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-body-sm">
-                <thead className="bg-surface-soft text-caption-sm uppercase tracking-[0.12em] text-mute">
-                  <tr>
-                    <th className="px-md py-sm font-normal">Method</th>
-                    <th className="px-md py-sm font-normal">1 GPU</th>
-                    <th className="px-md py-sm font-normal">2 GPU</th>
-                    <th className="px-md py-sm font-normal">4 GPU</th>
-                    <th className="px-md py-sm font-normal">8 GPU</th>
-                    <th className="px-md py-sm font-normal">Decision</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SUMMARY.map((row) => (
-                    <tr key={row[0]} className="border-t border-hairline">
-                      {row.map((cell, index) => (
-                        <td key={`${row[0]}-${index}`} className={index === 0 ? "px-md py-sm text-ink" : "px-md py-sm text-body"}>
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </section>
 
         <section className="mt-section grid gap-xl lg:grid-cols-[minmax(0,1fr)_360px]">
