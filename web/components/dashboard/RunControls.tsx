@@ -6,6 +6,7 @@ import { Pill } from "@/components/ui/Pill";
 
 export function RunControls() {
   const [prompt, setPrompt] = useState("");
+  const [budget, setBudget] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,7 +14,11 @@ export function RunControls() {
     if (!prompt.trim()) return;
     setBusy(true);
     setError(null);
-    const res = await startRun({ prompt });
+    const n = parseInt(budget, 10);
+    const res = await startRun({
+      prompt,
+      ...(Number.isFinite(n) && n > 0 ? { budget_total: n } : {}),
+    });
     setBusy(false);
     if (!res.ok) {
       setError(res.detail ?? "could not start run");
@@ -43,13 +48,27 @@ export function RunControls() {
           placeholder="e.g. make the data-loading pipeline as fast as possible without changing its outputs…"
           className="w-full resize-y rounded-lg border border-hairline bg-canvas px-lg py-md text-body-md text-ink outline-none focus:border-ink"
         />
-        <div className="flex items-center justify-between">
-          <span className="text-caption-sm text-mute">
-            Enter to run · Shift+Enter for a new line
-          </span>
-          <Pill onClick={run} disabled={busy || !prompt.trim()}>
-            {busy ? "Starting…" : "Run"}
-          </Pill>
+        <div className="flex items-center justify-between gap-md">
+          <label className="flex items-center gap-sm text-caption-sm text-mute">
+            budget
+            <input
+              type="number"
+              min={1}
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              placeholder="40"
+              className="w-16 rounded-md border border-hairline bg-surface-soft px-sm py-xxs text-center font-mono text-code-sm text-ink outline-none focus:border-ink"
+            />
+            experiments
+          </label>
+          <div className="flex items-center gap-md">
+            <span className="hidden text-caption-sm text-mute sm:inline">
+              Enter to run · Shift+Enter for a new line
+            </span>
+            <Pill onClick={run} disabled={busy || !prompt.trim()}>
+              {busy ? "Starting…" : "Run"}
+            </Pill>
+          </div>
         </div>
       </div>
       {error && <p className="mt-md text-body-sm text-ink">⚠ {error}</p>}

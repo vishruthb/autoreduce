@@ -43,20 +43,21 @@ export default function DashboardPage() {
         <div className="space-y-xl">
           {run && (
             <div className="flex items-center justify-end gap-lg">
-              {active && (
+              {active ? (
                 <button
                   onClick={() => cancelRun(run.id)}
                   className="text-caption-sm text-body underline hover:text-ink"
                 >
                   cancel run
                 </button>
+              ) : (
+                <button
+                  onClick={() => resetAll()}
+                  className="text-caption-sm text-ink underline"
+                >
+                  new run
+                </button>
               )}
-              <button
-                onClick={() => resetAll()}
-                className="text-caption-sm text-ink underline"
-              >
-                new run
-              </button>
             </div>
           )}
 
