@@ -17,7 +17,16 @@ def _load_dotenv(path: str = ".env") -> None:
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+                value = value.strip()
+                # Strip an inline ' # comment' from an UNQUOTED value (common in
+                # hand-written .env files). A '#' inside quotes, or one with no
+                # preceding whitespace, is kept as part of the value.
+                if value[:1] not in ("'", '"'):
+                    cut = min((i for i in (value.find(" #"), value.find("\t#"))
+                               if i != -1), default=-1)
+                    if cut != -1:
+                        value = value[:cut].rstrip()
+                os.environ.setdefault(key.strip(), value.strip('"').strip("'"))
     except OSError:
         pass
 
