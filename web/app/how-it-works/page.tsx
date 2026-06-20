@@ -127,6 +127,23 @@ const CONTROL_PLANE = [
   ["Result Reducer", "Builds leaderboards, failures, resource stats, and scale curves."],
 ];
 
+const CASE_STUDIES = [
+  {
+    href: "/case-studies/speculative-decoding",
+    title: "Speculative decoding batching",
+    body:
+      "Search over adaptive draft lengths, request grouping, KV-cache pressure, and 1/2/4/8 GPU scale probes.",
+    metric: "1.31x",
+  },
+  {
+    href: "/case-studies/low-bit-bf16",
+    title: "FP4 search, BF16 render",
+    body:
+      "Search over low-bit candidate generation, verifier routing, BF16 rerender budgets, and scale-aware diffusion inference.",
+    metric: "0.771",
+  },
+];
+
 function SectionHeading({
   eyebrow,
   title,
@@ -503,6 +520,31 @@ export default function DocsPage() {
                   {space.example}
                 </p>
               </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-section" id="case-studies">
+          <SectionHeading
+            eyebrow="case studies"
+            title="Run narratives"
+            body="Each case study has its own link and shows how the planner moves from broad search to scale probes."
+          />
+          <div className="mt-xl grid gap-md lg:grid-cols-2">
+            {CASE_STUDIES.map((study) => (
+              <Link
+                key={study.href}
+                href={study.href}
+                className="rounded-lg border border-hairline bg-canvas p-xl hover:border-hairline-strong hover:bg-surface-soft"
+              >
+                <div className="flex items-start justify-between gap-md">
+                  <h3 className="text-heading-md text-ink">{study.title}</h3>
+                  <span className="rounded-full border border-hairline-strong px-md py-xs font-mono text-code-sm text-charcoal">
+                    {study.metric}
+                  </span>
+                </div>
+                <p className="mt-md text-body-sm text-body">{study.body}</p>
+              </Link>
             ))}
           </div>
         </section>

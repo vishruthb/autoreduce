@@ -418,7 +418,7 @@ export default function LowBitBf16CaseStudyPage() {
             serving and batching.
           </p>
           <Link
-            href="/case-studies"
+            href="/case-studies/speculative-decoding"
             className="mt-lg inline-flex h-btn items-center rounded-full bg-primary px-[20px] text-button-md font-medium text-canvas active:bg-ink-deep"
           >
             Speculative decoding case study
