@@ -26,6 +26,10 @@ class SpecDecTask(Task):
     direction = "maximize"
     interface_name = "SpeculationStrategy"
     interface_import = "from specdec import SpeculationStrategy"
+    allowed_gpu_counts = (1, 2, 4, 8)
+    default_resource_shape = {"gpu_count": 1}
+    scale_axes = ("gpu_count", "batch_size", "concurrency", "draft_length")
+    scale_sensitive = True
     domain_blurb = (
         "Speculative decoding: a small draft strategy proposes the next tokens "
         "for a large target model to verify in parallel; the target accepts the "

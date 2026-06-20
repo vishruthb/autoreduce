@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS gpu_slots (
     status       TEXT NOT NULL DEFAULT 'free',  -- free | busy
     agent_id     INTEGER,
     idea_id      INTEGER,
+    lease_id     INTEGER,
     claimed_at   REAL,
     heartbeat_at REAL
 );
@@ -80,6 +81,55 @@ CREATE TABLE IF NOT EXISTS ideas (
 CREATE INDEX IF NOT EXISTS idx_ideas_status_id ON ideas(status, id);
 CREATE INDEX IF NOT EXISTS idx_ideas_run_metric ON ideas(run_id, metric);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ideas_hash ON ideas(config_hash);
+
+CREATE TABLE IF NOT EXISTS experiments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id              INTEGER NOT NULL REFERENCES runs(id),
+    idea_id             INTEGER NOT NULL REFERENCES ideas(id),
+    status              TEXT NOT NULL DEFAULT 'queued',
+    phase               TEXT NOT NULL DEFAULT 'default',
+    priority            INTEGER NOT NULL DEFAULT 0,
+    resource_shape_json TEXT NOT NULL,
+    workload_shape_json TEXT NOT NULL,
+    workspace           TEXT,
+    method_path         TEXT,
+    metric              REAL,
+    baseline_metric     REAL,
+    error               TEXT,
+    method_diff         TEXT,
+    followup            TEXT,
+    created_at          REAL NOT NULL,
+    claimed_at          REAL,
+    finished_at         REAL,
+    agent_id            INTEGER,
+    lease_id            INTEGER,
+    attempts            INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS agent_leases (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id     INTEGER NOT NULL,
+    idea_id      INTEGER,
+    status       TEXT NOT NULL DEFAULT 'busy',
+    claimed_at   REAL,
+    heartbeat_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS gpu_leases (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    experiment_id INTEGER NOT NULL REFERENCES experiments(id),
+    gpu_count     INTEGER NOT NULL,
+    gpu_ids_json  TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'busy',
+    claimed_at    REAL,
+    heartbeat_at  REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_experiments_status_priority
+    ON experiments(status, priority, id);
+CREATE INDEX IF NOT EXISTS idx_experiments_idea ON experiments(idea_id);
+CREATE INDEX IF NOT EXISTS idx_agent_leases_status ON agent_leases(status);
+CREATE INDEX IF NOT EXISTS idx_gpu_leases_status ON gpu_leases(status);
 """
 
 
@@ -95,6 +145,7 @@ def connect(path: str) -> sqlite3.Connection:
 # columns added after the initial release; brought in on existing DBs by _migrate
 _MIGRATIONS = {
     "ideas": {"method_diff": "TEXT", "followup": "TEXT", "baseline_metric": "REAL"},
+    "gpu_slots": {"lease_id": "INTEGER"},
     "runs": {"task_id": "TEXT NOT NULL DEFAULT ''"},  # '' for legacy rows only
 }
 

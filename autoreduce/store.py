@@ -19,6 +19,8 @@ import time
 from typing import Any
 
 from . import db
+from .config import settings
+from .resource import ResourceShape
 
 
 # --- canonical config helpers ----------------------------------------------
@@ -130,6 +132,45 @@ def insert_idea(conn: sqlite3.Connection, *, run_id: int, config: dict[str, Any]
     return cur.rowcount == 1
 
 
+def create_experiment(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int,
+    idea_id: int,
+    resource_shape: dict[str, Any] | None = None,
+    workload_shape: dict[str, Any] | None = None,
+    phase: str = "default",
+    priority: int = 0,
+    workspace: str | None = None,
+    method_path: str | None = None,
+    agent_id: int | None = None,
+) -> int:
+    resource = ResourceShape.from_dict(resource_shape).to_dict()
+    workload = workload_shape or {}
+    cur = conn.execute(
+        """INSERT INTO experiments(
+               run_id, idea_id, status, phase, priority,
+               resource_shape_json, workload_shape_json,
+               workspace, method_path, created_at, agent_id)
+           VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            run_id,
+            idea_id,
+            phase,
+            priority,
+            canonical_json(resource),
+            canonical_json(workload),
+            workspace,
+            method_path,
+            time.time(),
+            agent_id,
+        ),
+    )
+    eid = cur.lastrowid
+    assert eid is not None
+    return int(eid)
+
+
 def queue_depth(conn: sqlite3.Connection, run_id: int) -> int:
     return conn.execute(
         "SELECT COUNT(*) FROM ideas WHERE run_id=? AND status='queued'", (run_id,)
@@ -148,6 +189,110 @@ def _counts(conn: sqlite3.Connection, run_id: int) -> dict[str, int]:
     return out
 
 
+def _experiment_counts(conn: sqlite3.Connection, run_id: int) -> dict[str, int]:
+    rows = conn.execute(
+        "SELECT status, COUNT(*) c FROM experiments WHERE run_id=? GROUP BY status",
+        (run_id,),
+    ).fetchall()
+    out = {"queued": 0, "running": 0, "done": 0, "failed": 0, "cancelled": 0}
+    for r in rows:
+        out[r["status"]] = r["c"]
+    out["total"] = sum(out.values())
+    return out
+
+
+def enqueue_scale_probes(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int,
+    idea_id: int,
+    allowed_gpu_counts: tuple[int, ...],
+    max_gpus: int,
+    priority: int = 5,
+) -> list[int]:
+    """Queue missing higher-GPU experiments for a completed idea.
+
+    The method path/workspace come from the idea's best completed experiment, so
+    scale probes measure the same produced method under larger resource shapes.
+    """
+    counts = sorted({c for c in allowed_gpu_counts if 1 < c <= max_gpus})
+    if not counts:
+        return []
+    base = conn.execute(
+        """SELECT * FROM experiments
+           WHERE run_id=? AND idea_id=? AND status='done'
+             AND metric IS NOT NULL AND method_path IS NOT NULL
+           ORDER BY metric DESC, id ASC LIMIT 1""",
+        (run_id, idea_id),
+    ).fetchone()
+    if base is None:
+        return []
+    existing = {
+        ResourceShape.from_dict(json.loads(r["resource_shape_json"])).gpu_count
+        for r in conn.execute(
+            """SELECT resource_shape_json FROM experiments
+               WHERE run_id=? AND idea_id=? AND phase='scale_probe'""",
+            (run_id, idea_id),
+        ).fetchall()
+    }
+    created: list[int] = []
+    for gpu_count in counts:
+        if gpu_count in existing:
+            continue
+        created.append(create_experiment(
+            conn,
+            run_id=run_id,
+            idea_id=idea_id,
+            resource_shape={"gpu_count": gpu_count},
+            workload_shape=json.loads(base["workload_shape_json"]),
+            phase="scale_probe",
+            priority=priority,
+            workspace=base["workspace"],
+            method_path=base["method_path"],
+            agent_id=base["agent_id"],
+        ))
+    return created
+
+
+def plan_scale_probes(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int,
+    allowed_gpu_counts: tuple[int, ...],
+    max_gpus: int,
+    limit: int = 2,
+) -> list[int]:
+    """Queue scale probes for the top promising ideas, bounded per planner tick."""
+    run = get_run(conn, run_id)
+    if run is None:
+        return []
+    direction = run["direction"]
+    order = _better(direction)
+    rows = conn.execute(
+        f"""SELECT i.id, i.metric, i.baseline_metric
+            FROM ideas i
+            WHERE i.run_id=? AND i.status='done' AND i.metric IS NOT NULL
+            ORDER BY i.metric {order} LIMIT ?""",
+        (run_id, limit),
+    ).fetchall()
+    created: list[int] = []
+    for row in rows:
+        baseline = row["baseline_metric"]
+        metric = row["metric"]
+        if baseline is not None:
+            promising = metric > baseline if direction == "maximize" else metric < baseline
+            if not promising:
+                continue
+        created.extend(enqueue_scale_probes(
+            conn,
+            run_id=run_id,
+            idea_id=row["id"],
+            allowed_gpu_counts=allowed_gpu_counts,
+            max_gpus=max_gpus,
+        ))
+    return created
+
+
 # --- run-state transitions -------------------------------------------------
 
 def _maybe_transition_run_state(conn: sqlite3.Connection, run_id: int) -> None:
@@ -164,7 +309,7 @@ def _maybe_transition_run_state(conn: sqlite3.Connection, run_id: int) -> None:
         busy = conn.execute(
             "SELECT COUNT(*) FROM gpu_slots WHERE status='busy'"
         ).fetchone()[0]
-        if busy == 0 and c["queued"] == 0 and c["running"] == 0:
+        if busy == 0 and c["running"] == 0:
             conn.execute(
                 "UPDATE runs SET state='done', planner_status='done' WHERE id=?",
                 (run_id,),
@@ -270,6 +415,10 @@ def _report_result_txn(conn: sqlite3.Connection, *, idea_id: int,
                WHERE idea_id=?""",
             (idea_id,),
         )
+        conn.execute(
+            "UPDATE agent_leases SET status='done' WHERE idea_id=? AND status='busy'",
+            (idea_id,),
+        )
         _maybe_transition_run_state(conn, row["run_id"])
         conn.execute("COMMIT")
         return {"accepted": True}
@@ -288,6 +437,323 @@ def _heartbeat_txn(conn: sqlite3.Connection, *, gpu_id: int, idea_id: int,
         cur = conn.execute(
             "UPDATE gpu_slots SET heartbeat_at=? WHERE gpu_id=? AND idea_id=?",
             (now, gpu_id, idea_id),
+        )
+        conn.execute("COMMIT")
+        return {"ok": cur.rowcount == 1}
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+# --- decoupled agent + experiment claims ----------------------------------
+
+def _claim_agent_idea_txn(conn: sqlite3.Connection, *, agent_id: int,
+                          now: float | None = None) -> dict[str, Any]:
+    now = time.time() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        run = active_run(conn)
+        if run is None or run["state"] != "running":
+            conn.execute("COMMIT")
+            return {"status": "no_work", "reason": "no_active_run",
+                    "run_state": run["state"] if run else None}
+
+        c = _counts(conn, run["id"])
+        if c["done"] + c["running"] >= run["budget_total"]:
+            conn.execute("COMMIT")
+            return {"status": "no_work", "reason": "budget", "run_state": run["state"]}
+
+        idea = conn.execute(
+            """UPDATE ideas SET status='running', claimed_at=?, agent_id=?,
+                                attempts=attempts+1
+               WHERE id = (SELECT id FROM ideas
+                           WHERE run_id=? AND status='queued'
+                           ORDER BY id LIMIT 1)
+               RETURNING id, config_json""",
+            (now, agent_id, run["id"]),
+        ).fetchone()
+        if idea is None:
+            conn.execute("COMMIT")
+            return {"status": "no_work", "reason": "empty_queue",
+                    "run_state": run["state"]}
+
+        lease = conn.execute(
+            """INSERT INTO agent_leases(agent_id, idea_id, status, claimed_at,
+                                        heartbeat_at)
+               VALUES (?, ?, 'busy', ?, ?)
+               RETURNING id""",
+            (agent_id, idea["id"], now, now),
+        ).fetchone()
+        conn.execute("COMMIT")
+        return {
+            "status": "ok",
+            "idea": {"id": idea["id"], "config": json.loads(idea["config_json"])},
+            "task": run["task_id"],
+            "agent_lease_id": lease["id"],
+        }
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def _create_experiment_txn(
+    conn: sqlite3.Connection,
+    *,
+    idea_id: int,
+    resource_shape: dict[str, Any] | None = None,
+    workload_shape: dict[str, Any] | None = None,
+    phase: str = "default",
+    priority: int = 0,
+    workspace: str | None = None,
+    method_path: str | None = None,
+    agent_id: int | None = None,
+    now: float | None = None,
+) -> dict[str, Any]:
+    now = time.time() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        idea = conn.execute(
+            "SELECT run_id FROM ideas WHERE id=? AND status='running'",
+            (idea_id,),
+        ).fetchone()
+        if idea is None:
+            conn.execute("COMMIT")
+            return {"accepted": False, "reason": "idea_not_running"}
+        resource = ResourceShape.from_dict(resource_shape).to_dict()
+        workload = workload_shape or {}
+        cur = conn.execute(
+            """INSERT INTO experiments(
+                   run_id, idea_id, status, phase, priority,
+                   resource_shape_json, workload_shape_json,
+                   workspace, method_path, created_at, agent_id)
+               VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                idea["run_id"],
+                idea_id,
+                phase,
+                priority,
+                canonical_json(resource),
+                canonical_json(workload),
+                workspace,
+                method_path,
+                now,
+                agent_id,
+            ),
+        )
+        exp_id = int(cur.lastrowid)
+        conn.execute("COMMIT")
+        return {"accepted": True, "experiment_id": exp_id}
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def _finish_agent_lease_txn(conn: sqlite3.Connection, *, lease_id: int | None,
+                            idea_id: int | None = None,
+                            now: float | None = None) -> dict[str, Any]:
+    now = time.time() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if lease_id is not None:
+            cur = conn.execute(
+                """UPDATE agent_leases SET status='done', heartbeat_at=?
+                   WHERE id=? AND status='busy'""",
+                (now, lease_id),
+            )
+        elif idea_id is not None:
+            cur = conn.execute(
+                """UPDATE agent_leases SET status='done', heartbeat_at=?
+                   WHERE idea_id=? AND status='busy'""",
+                (now, idea_id),
+            )
+        else:
+            cur = None
+        conn.execute("COMMIT")
+        return {"ok": bool(cur and cur.rowcount >= 1)}
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def _claim_experiment_bundle_txn(conn: sqlite3.Connection, *, worker_id: int,
+                                 now: float | None = None) -> dict[str, Any]:
+    del worker_id  # stored in process logs for now; lease ownership is enough.
+    now = time.time() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        run = active_run(conn)
+        if run is None or run["state"] not in ("running", "draining"):
+            conn.execute("COMMIT")
+            return {"status": "no_work", "reason": "no_active_run",
+                    "run_state": run["state"] if run else None}
+
+        free = [
+            int(r["gpu_id"])
+            for r in conn.execute(
+                "SELECT gpu_id FROM gpu_slots WHERE status='free' ORDER BY gpu_id"
+            ).fetchall()
+        ]
+        if not free:
+            conn.execute("COMMIT")
+            return {"status": "no_work", "reason": "no_free_slot",
+                    "run_state": run["state"]}
+
+        rows = conn.execute(
+            """SELECT e.*, i.config_json, r.task_id FROM experiments e
+               JOIN ideas i ON i.id=e.idea_id
+               JOIN runs r ON r.id=e.run_id
+               WHERE e.run_id=? AND e.status='queued'
+               ORDER BY e.priority DESC, e.id ASC""",
+            (run["id"],),
+        ).fetchall()
+        chosen = None
+        chosen_shape = None
+        for row in rows:
+            shape = ResourceShape.from_dict(json.loads(row["resource_shape_json"]))
+            if shape.gpu_count <= len(free):
+                chosen = row
+                chosen_shape = shape
+                break
+        if chosen is None or chosen_shape is None:
+            conn.execute("COMMIT")
+            return {"status": "no_work", "reason": "no_fit",
+                    "free_gpus": len(free), "run_state": run["state"]}
+
+        gpu_ids = free[:chosen_shape.gpu_count]
+        lease = conn.execute(
+            """INSERT INTO gpu_leases(experiment_id, gpu_count, gpu_ids_json,
+                                      status, claimed_at, heartbeat_at)
+               VALUES (?, ?, ?, 'busy', ?, ?)
+               RETURNING id""",
+            (chosen["id"], chosen_shape.gpu_count, json.dumps(gpu_ids), now, now),
+        ).fetchone()
+        lease_id = int(lease["id"])
+        conn.executemany(
+            """UPDATE gpu_slots SET status='busy', lease_id=?, idea_id=?,
+                                    claimed_at=?, heartbeat_at=?
+               WHERE gpu_id=?""",
+            [(lease_id, chosen["idea_id"], now, now, gid) for gid in gpu_ids],
+        )
+        conn.execute(
+            """UPDATE experiments SET status='running', claimed_at=?, lease_id=?,
+                                      attempts=attempts+1
+               WHERE id=? AND status='queued'""",
+            (now, lease_id, chosen["id"]),
+        )
+        conn.execute("COMMIT")
+        method_path = chosen["method_path"]
+        if method_path is None and chosen["workspace"]:
+            method_path = f"{chosen['workspace'].rstrip('/')}/method.py"
+        return {
+            "status": "ok",
+            "experiment": {
+                "id": chosen["id"],
+                "idea_id": chosen["idea_id"],
+                "config": json.loads(chosen["config_json"]),
+                "phase": chosen["phase"],
+                "resource_shape": chosen_shape.to_dict(),
+                "workload_shape": json.loads(chosen["workload_shape_json"]),
+                "workspace": chosen["workspace"],
+                "method_path": method_path,
+            },
+            "task": chosen["task_id"],
+            "gpu_ids": gpu_ids,
+            "gpu_lease_id": lease_id,
+            "cuda_visible_devices": ",".join(str(gid) for gid in gpu_ids),
+        }
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def _report_experiment_result_txn(
+    conn: sqlite3.Connection,
+    *,
+    experiment_id: int,
+    metric: float | None,
+    status: str,
+    error: str | None,
+    method_diff: str | None = None,
+    followup: str | None = None,
+    baseline: float | None = None,
+    now: float | None = None,
+) -> dict[str, Any]:
+    now = time.time() if now is None else now
+    final_status = "done" if status in ("ok", "done") and metric is not None else "failed"
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute(
+            """UPDATE experiments SET status=?, metric=?, error=?, finished_at=?,
+                                      method_diff=?, followup=?, baseline_metric=?
+               WHERE id=? AND status='running'
+               RETURNING run_id, idea_id, lease_id""",
+            (
+                final_status,
+                metric,
+                error,
+                now,
+                method_diff,
+                followup,
+                baseline,
+                experiment_id,
+            ),
+        ).fetchone()
+        if row is None:
+            conn.execute("COMMIT")
+            return {"accepted": False, "reason": "not_running"}
+
+        conn.execute(
+            """UPDATE ideas SET status=?, metric=?, error=?, finished_at=?,
+                                method_diff=?, followup=?, baseline_metric=?
+               WHERE id=? AND status='running'""",
+            (
+                final_status,
+                metric,
+                error,
+                now,
+                method_diff,
+                followup,
+                baseline,
+                row["idea_id"],
+            ),
+        )
+        conn.execute(
+            "UPDATE agent_leases SET status='done' WHERE idea_id=? AND status='busy'",
+            (row["idea_id"],),
+        )
+        if row["lease_id"] is not None:
+            conn.execute(
+                """UPDATE gpu_leases SET status='done', heartbeat_at=?
+                   WHERE id=?""",
+                (now, row["lease_id"]),
+            )
+            conn.execute(
+                """UPDATE gpu_slots SET status='free', lease_id=NULL, idea_id=NULL,
+                                        agent_id=NULL, claimed_at=NULL,
+                                        heartbeat_at=NULL
+                   WHERE lease_id=?""",
+                (row["lease_id"],),
+            )
+        _maybe_transition_run_state(conn, row["run_id"])
+        conn.execute("COMMIT")
+        return {"accepted": True}
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def _heartbeat_gpu_lease_txn(conn: sqlite3.Connection, *, lease_id: int,
+                             now: float | None = None) -> dict[str, Any]:
+    now = time.time() if now is None else now
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        cur = conn.execute(
+            "UPDATE gpu_leases SET heartbeat_at=? WHERE id=? AND status='busy'",
+            (now, lease_id),
+        )
+        conn.execute(
+            "UPDATE gpu_slots SET heartbeat_at=? WHERE lease_id=?",
+            (now, lease_id),
         )
         conn.execute("COMMIT")
         return {"ok": cur.rowcount == 1}
@@ -484,6 +950,7 @@ def read_digest(conn: sqlite3.Connection, run_id: int) -> dict[str, Any]:
     run = get_run(conn, run_id)
     direction = run["direction"] if run else "maximize"
     best_metric, best_trajectory = best_progress(conn, run_id, direction)
+    resource = resource_state(conn, run_id)
     return {
         "goal": run["prompt"] if run else None,
         "best_metric": best_metric,
@@ -492,7 +959,148 @@ def read_digest(conn: sqlite3.Connection, run_id: int) -> dict[str, Any]:
         "tried_hypotheses": tried_hypotheses(conn, run_id),
         "followups": recent_followups(conn, run_id),
         "queue_depth": queue_depth(conn, run_id),
+        "agent_stats": resource["agent_stats"],
+        "gpu_stats": resource["gpu_stats"],
+        "scale_curves": scale_curves(conn, run_id),
     }
+
+
+def scale_curves(conn: sqlite3.Connection, run_id: int) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """SELECT e.idea_id, i.config_json, e.resource_shape_json,
+                  e.workload_shape_json, e.metric
+           FROM experiments e JOIN ideas i ON i.id=e.idea_id
+           WHERE e.run_id=? AND e.status='done' AND e.metric IS NOT NULL
+           ORDER BY e.idea_id, e.id""",
+        (run_id,),
+    ).fetchall()
+    by_idea: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        shape = json.loads(r["resource_shape_json"])
+        workload = json.loads(r["workload_shape_json"])
+        item = by_idea.setdefault(
+            r["idea_id"],
+            {
+                "idea_id": r["idea_id"],
+                "hypothesis": _hypothesis(r["config_json"]),
+                "points": [],
+            },
+        )
+        item["points"].append({
+            "gpu_count": shape.get("gpu_count", 1),
+            "metric": r["metric"],
+            **workload,
+        })
+    return list(by_idea.values())
+
+
+def resource_state(conn: sqlite3.Connection, run_id: int | None = None) -> dict[str, Any]:
+    total_gpus = conn.execute("SELECT COUNT(*) FROM gpu_slots").fetchone()[0]
+    busy_gpus = conn.execute(
+        "SELECT COUNT(*) FROM gpu_slots WHERE status='busy'"
+    ).fetchone()[0]
+    active_agents = conn.execute(
+        "SELECT COUNT(*) FROM agent_leases WHERE status='busy'"
+    ).fetchone()[0]
+    running_jobs = conn.execute(
+        "SELECT COUNT(*) FROM experiments WHERE status='running'"
+        + (" AND run_id=?" if run_id is not None else ""),
+        (() if run_id is None else (run_id,)),
+    ).fetchone()[0]
+    queued_jobs = conn.execute(
+        "SELECT COUNT(*) FROM experiments WHERE status='queued'"
+        + (" AND run_id=?" if run_id is not None else ""),
+        (() if run_id is None else (run_id,)),
+    ).fetchone()[0]
+    gpu_leases = conn.execute(
+        """SELECT gl.*, e.idea_id FROM gpu_leases gl
+           JOIN experiments e ON e.id=gl.experiment_id
+           WHERE gl.status='busy'
+           ORDER BY gl.id"""
+    ).fetchall()
+    bundles = [
+        {
+            "lease_id": r["id"],
+            "experiment_id": r["experiment_id"],
+            "idea_id": r["idea_id"],
+            "gpu_count": r["gpu_count"],
+            "gpu_ids": json.loads(r["gpu_ids_json"]),
+            "claimed_at": r["claimed_at"],
+        }
+        for r in gpu_leases
+    ]
+    utilization = 0.0 if total_gpus == 0 else busy_gpus / total_gpus
+    avg_think_s = _avg_duration(
+        conn,
+        "ideas",
+        run_id,
+        "claimed_at IS NOT NULL AND finished_at IS NOT NULL",
+    )
+    avg_gpu_s = _avg_duration(
+        conn,
+        "experiments",
+        run_id,
+        "claimed_at IS NOT NULL AND finished_at IS NOT NULL",
+    )
+    target_agents = target_agent_count(
+        total_gpus=total_gpus,
+        gpu_queue_depth=queued_jobs,
+        avg_think_s=avg_think_s,
+        avg_gpu_s=avg_gpu_s,
+        cap=settings.agent_pool_size,
+    )
+    return {
+        "agent_stats": {
+            "active_agents": active_agents,
+            "target_agents": target_agents,
+            "avg_think_s": avg_think_s,
+            "avg_gpu_s": avg_gpu_s,
+        },
+        "gpu_stats": {
+            "total_gpus": total_gpus,
+            "free_gpus": total_gpus - busy_gpus,
+            "busy_gpus": busy_gpus,
+            "running_jobs": running_jobs,
+            "queued_jobs": queued_jobs,
+            "utilization": round(utilization, 4),
+            "bundles": bundles,
+        },
+    }
+
+
+def _avg_duration(conn: sqlite3.Connection, table: str, run_id: int | None,
+                  predicate: str) -> float | None:
+    where = predicate
+    args: tuple[Any, ...] = ()
+    if run_id is not None:
+        where = f"run_id=? AND {predicate}"
+        args = (run_id,)
+    row = conn.execute(
+        f"SELECT AVG(finished_at - claimed_at) v FROM {table} WHERE {where}",
+        args,
+    ).fetchone()
+    value = row["v"] if row is not None else None
+    return round(float(value), 2) if value is not None else None
+
+
+def target_agent_count(
+    *,
+    total_gpus: int,
+    gpu_queue_depth: int,
+    avg_think_s: float | None,
+    avg_gpu_s: float | None,
+    cap: int,
+) -> int:
+    if total_gpus <= 0:
+        return 1
+    if not avg_gpu_s or avg_gpu_s <= 0 or avg_think_s is None:
+        target = total_gpus
+    else:
+        target = int(total_gpus * (avg_think_s + avg_gpu_s) / avg_gpu_s)
+    target = max(1, min(target, 4 * total_gpus + 2, cap))
+    if gpu_queue_depth > 2 * total_gpus:
+        target = max(1, target // 2)
+    return target
 
 
 def _rank_key(direction: str):
@@ -510,6 +1118,7 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
     run_dict = None
     planner = None
     ideas_out: list[dict[str, Any]] = []
+    experiments_out: list[dict[str, Any]] = []
     stats = {"total": 0, "queued": 0, "running": 0, "done": 0, "failed": 0,
              "best_value": None, "best_idea_id": None}
     direction = "maximize"
@@ -571,6 +1180,29 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         for i in ideas_out:
             i.setdefault("rank", None)
 
+        exp_rows = conn.execute(
+            "SELECT * FROM experiments WHERE run_id=? ORDER BY id", (run["id"],)
+        ).fetchall()
+        for e in exp_rows:
+            experiments_out.append({
+                "id": e["id"],
+                "idea_id": e["idea_id"],
+                "status": e["status"],
+                "phase": e["phase"],
+                "priority": e["priority"],
+                "resource_shape": json.loads(e["resource_shape_json"]),
+                "workload_shape": json.loads(e["workload_shape_json"]),
+                "metric_value": e["metric"],
+                "baseline": e["baseline_metric"],
+                "error": e["error"],
+                "agent": (f"worker-{e['agent_id']}"
+                          if e["agent_id"] is not None else None),
+                "lease_id": e["lease_id"],
+                "created_at": e["created_at"],
+                "claimed_at": e["claimed_at"],
+                "finished_at": e["finished_at"],
+            })
+
     slots_out = [{
         "gpu_id": s["gpu_id"],
         "status": s["status"],
@@ -584,7 +1216,10 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         "planner": planner,
         "slots": slots_out,
         "ideas": ideas_out,
+        "experiments": experiments_out,
         "stats": stats,
+        "resources": resource_state(conn, run["id"] if run is not None else None),
+        "scale_curves": scale_curves(conn, run["id"]) if run is not None else [],
         "server_time": time.time(),
     }
 
@@ -612,6 +1247,75 @@ async def heartbeat(gpu_id: int, idea_id: int) -> dict[str, Any]:
         return _heartbeat_txn(db.conn(), gpu_id=gpu_id, idea_id=idea_id)
 
 
+async def claim_agent_idea(agent_id: int) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        return _claim_agent_idea_txn(db.conn(), agent_id=agent_id)
+
+
+async def create_queued_experiment(
+    idea_id: int,
+    *,
+    resource_shape: dict[str, Any] | None = None,
+    workload_shape: dict[str, Any] | None = None,
+    phase: str = "default",
+    priority: int = 0,
+    workspace: str | None = None,
+    method_path: str | None = None,
+    agent_id: int | None = None,
+) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        return _create_experiment_txn(
+            db.conn(),
+            idea_id=idea_id,
+            resource_shape=resource_shape,
+            workload_shape=workload_shape,
+            phase=phase,
+            priority=priority,
+            workspace=workspace,
+            method_path=method_path,
+            agent_id=agent_id,
+        )
+
+
+async def finish_agent_lease(lease_id: int | None = None,
+                             idea_id: int | None = None) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        return _finish_agent_lease_txn(
+            db.conn(), lease_id=lease_id, idea_id=idea_id)
+
+
+async def claim_experiment_bundle(worker_id: int) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        return _claim_experiment_bundle_txn(db.conn(), worker_id=worker_id)
+
+
+async def report_experiment_result(
+    experiment_id: int,
+    metric: float | None,
+    status: str,
+    error: str | None = None,
+    method_diff: str | None = None,
+    followup: str | None = None,
+    baseline: float | None = None,
+) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        return _report_experiment_result_txn(
+            db.conn(),
+            experiment_id=experiment_id,
+            metric=metric,
+            status=status,
+            error=error,
+            method_diff=method_diff,
+            followup=followup,
+            baseline=baseline,
+        )
+
+
+async def heartbeat_gpu_lease(lease_id: int) -> dict[str, Any]:
+    async with db.STATE_LOCK:
+        return _heartbeat_gpu_lease_txn(db.conn(), lease_id=lease_id)
+
+
 async def reaper_pass(heartbeat_timeout: float, harness_timeout: float) -> list[int]:
     async with db.STATE_LOCK:
         return _reaper_txn(db.conn(), heartbeat_timeout=heartbeat_timeout,
@@ -621,10 +1325,14 @@ async def reaper_pass(heartbeat_timeout: float, harness_timeout: float) -> list[
 def _reset_all_txn(conn: sqlite3.Connection) -> None:
     conn.execute("BEGIN IMMEDIATE")
     try:
+        conn.execute("DELETE FROM gpu_leases")
+        conn.execute("DELETE FROM agent_leases")
+        conn.execute("DELETE FROM experiments")
         conn.execute("DELETE FROM ideas")
         conn.execute("DELETE FROM runs")
         conn.execute("UPDATE gpu_slots SET status='free', agent_id=NULL, "
-                     "idea_id=NULL, claimed_at=NULL, heartbeat_at=NULL")
+                     "idea_id=NULL, lease_id=NULL, claimed_at=NULL, "
+                     "heartbeat_at=NULL")
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")

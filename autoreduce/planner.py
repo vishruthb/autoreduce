@@ -115,6 +115,7 @@ async def _tick() -> None:
     if run["state"] != "running":
         return  # draining/done — nothing to propose
     digest = await _db(lambda c: store.read_digest(c, run["id"]))
+    await _maybe_queue_scale_probes(run)
     if digest["queue_depth"] < 2 * settings.pool_size:
         await _reseed(run, digest)
 
@@ -122,6 +123,31 @@ async def _tick() -> None:
 async def _set_planner(run_id: int, **kw) -> None:
     await _db(lambda c: store.set_planner_status(c, run_id, **kw))
     events.broker.publish_snapshot()
+
+
+async def _maybe_queue_scale_probes(run) -> None:
+    if settings.scheduler_mode != "decoupled":
+        return
+    try:
+        task = bench.load_task(run["task_id"])
+    except Exception:  # noqa: BLE001
+        return
+    if not getattr(task, "scale_sensitive", False):
+        return
+    allowed = tuple(getattr(task, "allowed_gpu_counts", (1,)))
+    created = await _db(lambda c: store.plan_scale_probes(
+        c,
+        run_id=run["id"],
+        allowed_gpu_counts=allowed,
+        max_gpus=settings.pool_size,
+    ))
+    if created:
+        await _set_planner(
+            run["id"],
+            status="waiting",
+            reasoning=f"Queued {len(created)} scale probe(s) for promising methods.",
+            exploring_region="scale probes",
+        )
 
 
 def _empty_digest() -> dict[str, Any]:

@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import api, db, planner, reaper
+from . import api, db, planner, reaper, scheduler
 from .config import settings
 from .supervisor import Supervisor
 
@@ -22,7 +22,10 @@ from .supervisor import Supervisor
 class _QuietPolls(logging.Filter):
     """Drop access-log spam for the high-frequency internal poll endpoints."""
 
-    NOISY = {"/claim_idea", "/heartbeat", "/agent_log"}
+    NOISY = {
+        "/claim_idea", "/heartbeat", "/agent_log", "/agent/claim_idea",
+        "/experiments/claim",
+    }
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
@@ -41,11 +44,18 @@ async def lifespan(app: FastAPI):
     db.STATE_LOCK = asyncio.Lock()
 
     stop = asyncio.Event()
-    sup = Supervisor(settings.pool_size, settings.base_url)
+    sup = Supervisor(
+        settings.pool_size,
+        settings.base_url,
+        mode=settings.scheduler_mode,
+        agent_pool_size=settings.agent_pool_size,
+        agent_autoscale=settings.agent_autoscale,
+    )
     sup.start()
     tasks = [
         asyncio.create_task(planner.planner_loop(stop)),
         asyncio.create_task(reaper.reaper_loop(stop)),
+        asyncio.create_task(scheduler.agent_autoscaler_loop(stop, sup)),
         asyncio.create_task(sup.watch(stop)),
     ]
     try:

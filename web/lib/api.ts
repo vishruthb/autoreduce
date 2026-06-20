@@ -11,6 +11,7 @@ export type PlannerStatus =
   | "waiting"
   | "done";
 export type IdeaStatus = "queued" | "running" | "done" | "failed";
+export type ExperimentStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 export type Origin = "seed" | "exploit" | "explore";
 export type SlotStatus = "free" | "busy";
 export type Direction = "maximize" | "minimize";
@@ -45,6 +46,33 @@ export interface Slot {
   claimed_at: number | null;
 }
 
+export interface GpuBundle {
+  lease_id: number;
+  experiment_id: number;
+  idea_id: number;
+  gpu_count: number;
+  gpu_ids: number[];
+  claimed_at: number | null;
+}
+
+export interface ResourceState {
+  agent_stats: {
+    active_agents: number;
+    target_agents: number | null;
+    avg_think_s: number | null;
+    avg_gpu_s: number | null;
+  };
+  gpu_stats: {
+    total_gpus: number;
+    free_gpus: number;
+    busy_gpus: number;
+    running_jobs: number;
+    queued_jobs: number;
+    utilization: number;
+    bundles: GpuBundle[];
+  };
+}
+
 export interface Idea {
   id: number;
   config: Record<string, unknown>;
@@ -59,6 +87,29 @@ export interface Idea {
   gpu_id: number | null;
   agent: string | null;
   rank: number | null;
+  created_at: number;
+  claimed_at: number | null;
+  finished_at: number | null;
+}
+
+export interface Experiment {
+  id: number;
+  idea_id: number;
+  status: ExperimentStatus;
+  phase: string;
+  priority: number;
+  resource_shape: {
+    gpu_count?: number;
+    gpu_type?: string;
+    placement?: string;
+    [key: string]: unknown;
+  };
+  workload_shape: Record<string, unknown>;
+  metric_value: number | null;
+  baseline: number | null;
+  error: string | null;
+  agent: string | null;
+  lease_id: number | null;
   created_at: number;
   claimed_at: number | null;
   finished_at: number | null;
@@ -79,6 +130,13 @@ export interface StateSnapshot {
   planner: Planner | null;
   slots: Slot[];
   ideas: Idea[];
+  experiments?: Experiment[];
+  resources?: ResourceState;
+  scale_curves?: Array<{
+    idea_id: number;
+    hypothesis: string;
+    points: Array<Record<string, unknown>>;
+  }>;
   stats: Stats;
   server_time: number;
 }

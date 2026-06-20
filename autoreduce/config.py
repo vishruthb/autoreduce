@@ -46,6 +46,19 @@ class Settings:
     host: str = os.environ.get("AUTOREDUCE_HOST", "127.0.0.1")
     port: int = _int("AUTOREDUCE_PORT", 8000)
     pool_size: int = _int("AUTOREDUCE_POOL_SIZE", 8)
+    scheduler_mode: str = os.environ.get("AUTOREDUCE_SCHEDULER_MODE", "coupled")
+    agent_pool_size: int = _int(
+        "AUTOREDUCE_AGENT_POOL_SIZE",
+        max(1, min(16, _int("AUTOREDUCE_POOL_SIZE", 8) * 2)),
+    )
+    agent_autoscale: bool = (
+        os.environ.get("AUTOREDUCE_AGENT_AUTOSCALE", "1")
+        not in ("", "0", "false")
+    )
+    simulate_scale_metrics: bool = (
+        os.environ.get("AUTOREDUCE_SIMULATE_SCALE_METRICS", "")
+        not in ("", "0", "false")
+    )
     default_budget: int = _int("AUTOREDUCE_DEFAULT_BUDGET", 40)
     db_path: str = os.environ.get("AUTOREDUCE_DB", "autoreduce.db")
     seed: int = _int("AUTOREDUCE_SEED", 1234)

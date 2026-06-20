@@ -35,6 +35,7 @@ from .bench import Task
 from .config import settings
 
 OnLog = Callable[[str], None]
+BenchmarkCallback = Callable[[str], dict[str, Any]]
 _BENCH_TIMEOUT = 30
 METHOD_FILE = "method.py"
 
@@ -96,10 +97,38 @@ def _finalize(workspace: str, *, cvd: str | None, task_id: str,
                               method_diff=method_diff, followup=followup)
 
 
+def _method_ready(workspace: str, *, method_diff: str | None,
+                  followup: str | None) -> AgentResult:
+    method_path = os.path.join(workspace, METHOD_FILE)
+    if not os.path.exists(method_path):
+        return AgentResult.failed("agent wrote no method.py",
+                                  method_diff=method_diff, followup=followup)
+    return AgentResult(metric=None, baseline=None, status="done", error=None,
+                       method_diff=method_diff or "method.py ready",
+                       followup=followup)
+
+
+def read_method_source(workspace: str) -> str | None:
+    method_path = os.path.join(workspace, METHOD_FILE)
+    try:
+        with open(method_path) as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 # --- workspace -------------------------------------------------------------
 
 def prepare_workspace(gpu_id: int) -> str:
     ws = os.path.abspath(os.path.join("run", f"gpu{gpu_id}", "workspace"))
+    shutil.rmtree(ws, ignore_errors=True)
+    os.makedirs(ws, exist_ok=True)
+    return ws
+
+
+def prepare_agent_workspace(agent_id: int, idea_id: int) -> str:
+    ws = os.path.abspath(os.path.join("run", "agents", f"agent{agent_id}",
+                                      f"idea{idea_id}", "workspace"))
     shutil.rmtree(ws, ignore_errors=True)
     os.makedirs(ws, exist_ok=True)
     return ws
@@ -184,7 +213,8 @@ def _path_guard(workspace: str):
 
 
 def _make_bench_server(workspace: str, record: dict[str, Any], cvd: str | None,
-                       task_id: str, on_log: OnLog):
+                       task_id: str, on_log: OnLog,
+                       benchmark_callback: BenchmarkCallback | None = None):
     from claude_agent_sdk import create_sdk_mcp_server, tool
 
     @tool("run_benchmark", "Measure the method.py you wrote on the sealed "
@@ -194,8 +224,18 @@ def _make_bench_server(workspace: str, record: dict[str, Any], cvd: str | None,
         if not os.path.exists(method_path):
             return {"content": [{"type": "text",
                                  "text": "No method.py yet — write it first."}]}
-        res = _run_sealed_bench(method_path, cvd, task_id)
         record["runs"] = record.get("runs", 0) + 1
+        if benchmark_callback is not None:
+            res = benchmark_callback(method_path)
+            if res.get("status") == "ok":
+                on_log("benchmark queued")
+                return {"content": [{"type": "text",
+                                     "text": res.get("message")
+                                             or "Benchmark queued for a worker."}]}
+            on_log(f"benchmark queue failed: {(res.get('error') or '')[:80]}")
+            return {"content": [{"type": "text",
+                                 "text": f"FAILED: {res.get('error') or 'benchmark queue failed'}"}]}
+        res = _run_sealed_bench(method_path, cvd, task_id)
         if res.get("status") == "ok":
             m = res.get("metric")
             if m is not None and (record.get("best") is None or m > record["best"]):
@@ -248,11 +288,13 @@ def _stream_activity(msg: Any, on_log: OnLog) -> None:
 
 async def run_agent_session(*, task: Task, workspace: str, hypothesis: str,
                             digest: dict[str, Any], cvd: str | None,
-                            on_log: OnLog) -> AgentResult:
+                            on_log: OnLog, finalize: bool = True,
+                            benchmark_callback: BenchmarkCallback | None = None) -> AgentResult:
     from claude_agent_sdk import ClaudeAgentOptions, query
 
     record: dict[str, Any] = {}
-    server = _make_bench_server(workspace, record, cvd, task.id, on_log)
+    server = _make_bench_server(workspace, record, cvd, task.id, on_log,
+                                benchmark_callback=benchmark_callback)
     options = ClaudeAgentOptions(
         cwd=workspace,
         model=settings.agent_model,
@@ -284,15 +326,18 @@ async def run_agent_session(*, task: Task, workspace: str, hypothesis: str,
     except Exception as exc:  # noqa: BLE001 — max-turns/budget/SDK error: still measure
         on_log(f"session ended: {str(exc)[:120]}")
 
-    return _finalize(workspace, cvd=cvd, task_id=task.id,
-                     method_diff=record.get("method_diff"),
-                     followup=record.get("followup"))
+    if finalize:
+        return _finalize(workspace, cvd=cvd, task_id=task.id,
+                         method_diff=record.get("method_diff"),
+                         followup=record.get("followup"))
+    return _method_ready(workspace, method_diff=record.get("method_diff"),
+                         followup=record.get("followup"))
 
 
 # --- the key-free fake agent -----------------------------------------------
 
 def fake_agent_session(*, task: Task, workspace: str, hypothesis: str,
-                       cvd: str | None, on_log: OnLog) -> AgentResult:
+                       cvd: str | None, on_log: OnLog, finalize: bool = True) -> AgentResult:
     """Deterministic stand-in for the Agent SDK: writes the task's sample method
     (sometimes the broken one, to exercise graceful failure), then finalizes."""
     h = int(hashlib.sha256(hypothesis.encode()).hexdigest(), 16)
@@ -303,5 +348,7 @@ def fake_agent_session(*, task: Task, workspace: str, hypothesis: str,
     diff = "deliberately broken (fake)" if broken else "task sample method (fake)"
     followup = None if broken else "vary the method's key parameter"
     on_log("method failed" if broken else "submitted")
-    return _finalize(workspace, cvd=cvd, task_id=task.id, method_diff=diff,
-                     followup=followup)
+    if finalize:
+        return _finalize(workspace, cvd=cvd, task_id=task.id, method_diff=diff,
+                         followup=followup)
+    return _method_ready(workspace, method_diff=diff, followup=followup)

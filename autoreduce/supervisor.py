@@ -19,29 +19,70 @@ GRACE_SECONDS = 3.0
 
 
 class Supervisor:
-    def __init__(self, pool_size: int, base_url: str) -> None:
+    def __init__(
+        self,
+        pool_size: int,
+        base_url: str,
+        *,
+        mode: str = "coupled",
+        agent_pool_size: int | None = None,
+        agent_autoscale: bool = False,
+    ) -> None:
         self.pool_size = pool_size
         self.base_url = base_url
-        self.procs: dict[int, subprocess.Popen] = {}
+        self.mode = mode
+        self.agent_pool_size = agent_pool_size or pool_size
+        self.agent_autoscale = agent_autoscale
+        self.procs: dict[str, subprocess.Popen] = {}
         self._shutting_down = False
 
-    def _spawn(self, worker_id: int) -> subprocess.Popen:
+    def _spawn_coupled(self, worker_id: int) -> subprocess.Popen:
         return subprocess.Popen(
             [sys.executable, "-m", "autoreduce.worker",
              "--id", str(worker_id), "--base-url", self.base_url],
             start_new_session=True,
         )
 
+    def _spawn_agent(self, worker_id: int) -> subprocess.Popen:
+        return subprocess.Popen(
+            [sys.executable, "-m", "autoreduce.worker", "--kind", "agent",
+             "--id", str(worker_id), "--base-url", self.base_url],
+            start_new_session=True,
+        )
+
+    def _spawn_benchmark(self, worker_id: int) -> subprocess.Popen:
+        return subprocess.Popen(
+            [sys.executable, "-m", "autoreduce.benchmark_worker",
+             "--id", str(worker_id), "--base-url", self.base_url],
+            start_new_session=True,
+        )
+
+    def _spawn_key(self, key: str) -> subprocess.Popen:
+        kind, raw_id = key.split(":", 1)
+        worker_id = int(raw_id)
+        if kind == "agent":
+            return self._spawn_agent(worker_id)
+        if kind == "bench":
+            return self._spawn_benchmark(worker_id)
+        return self._spawn_coupled(worker_id)
+
     def start(self) -> None:
+        if self.mode == "decoupled":
+            initial_agents = self.pool_size if self.agent_autoscale else self.agent_pool_size
+            for i in range(min(initial_agents, self.agent_pool_size)):
+                self.procs[f"agent:{i}"] = self._spawn_agent(i)
+            for i in range(self.pool_size):
+                self.procs[f"bench:{i}"] = self._spawn_benchmark(i)
+            return
         for i in range(self.pool_size):
-            self.procs[i] = self._spawn(i)
+            self.procs[f"coupled:{i}"] = self._spawn_coupled(i)
 
     async def watch(self, stop: asyncio.Event) -> None:
         while not stop.is_set():
             if not self._shutting_down:
-                for wid, proc in list(self.procs.items()):
+                for key, proc in list(self.procs.items()):
                     if proc.poll() is not None:  # exited unexpectedly
-                        self.procs[wid] = self._spawn(wid)
+                        self.procs[key] = self._spawn_key(key)
             try:
                 await asyncio.wait_for(stop.wait(), timeout=WATCH_INTERVAL)
             except asyncio.TimeoutError:
@@ -62,6 +103,33 @@ class Supervisor:
             if proc.poll() is None:
                 _signal_group(proc, signal.SIGKILL)
         self.procs.clear()
+
+    def scale_agents(self, target: int) -> None:
+        if self.mode != "decoupled" or self._shutting_down:
+            return
+        target = max(1, min(target, self.agent_pool_size))
+        active = sorted(
+            int(key.split(":", 1)[1])
+            for key, proc in self.procs.items()
+            if key.startswith("agent:") and proc.poll() is None
+        )
+        active_set = set(active)
+        if len(active) < target:
+            for worker_id in range(self.agent_pool_size):
+                if len(active_set) >= target:
+                    break
+                if worker_id in active_set:
+                    continue
+                key = f"agent:{worker_id}"
+                self.procs[key] = self._spawn_agent(worker_id)
+                active_set.add(worker_id)
+            return
+        if len(active) > target:
+            for worker_id in reversed(active[target:]):
+                key = f"agent:{worker_id}"
+                proc = self.procs.pop(key, None)
+                if proc is not None:
+                    _signal_group(proc, signal.SIGTERM)
 
 
 def _signal_group(proc: subprocess.Popen, sig: int) -> None:

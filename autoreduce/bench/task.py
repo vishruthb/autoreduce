@@ -43,6 +43,11 @@ class Task(ABC):
     interface_name: str        # the ABC class the agent subclasses
     interface_import: str      # the exact import line the agent must use
     domain_blurb: str          # what the agent is optimizing, in one sentence
+    allowed_gpu_counts: tuple[int, ...] = (1,)
+    default_resource_shape: dict[str, Any] = {"gpu_count": 1}
+    default_workload_shape: dict[str, Any] = {}
+    scale_axes: tuple[str, ...] = ()
+    scale_sensitive: bool = False
 
     @abstractmethod
     def interface_source(self) -> str:

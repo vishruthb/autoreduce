@@ -9,6 +9,10 @@ import { AgentPool } from "@/components/dashboard/AgentPool";
 import { RankedTable } from "@/components/dashboard/RankedTable";
 import { RunControls } from "@/components/dashboard/RunControls";
 import { ReportPanel } from "@/components/dashboard/ReportPanel";
+import { ResourcePanel } from "@/components/dashboard/ResourcePanel";
+import { ScaleCurves } from "@/components/dashboard/ScaleCurves";
+import { TopologyPanel } from "@/components/dashboard/TopologyPanel";
+import { BenchmarkQueue } from "@/components/dashboard/BenchmarkQueue";
 
 export default function DashboardPage() {
   const { snapshot, logs, connection } = useEventStream();
@@ -30,7 +34,7 @@ export default function DashboardPage() {
   const run = snapshot?.run ?? null;
   const planner = snapshot?.planner ?? null;
   const active = run != null && (run.state === "running" || run.state === "draining");
-  const showControls = !active;
+  const showControls = run == null;
   const showReport =
     run != null && (run.state === "done" || run.state === "draining");
   const busy = snapshot?.slots.filter((s) => s.status === "busy").length ?? 0;
@@ -63,6 +67,20 @@ export default function DashboardPage() {
 
           {planner && run && active && <PlannerBox planner={planner} run={run} />}
 
+          {run && <TopologyPanel run={run} resources={snapshot.resources} />}
+
+          {active && <ResourcePanel resources={snapshot.resources} />}
+
+          {run && (
+            <BenchmarkQueue
+              experiments={snapshot.experiments ?? []}
+              ideasById={ideasById}
+              now={now}
+            />
+          )}
+
+          {run && <ScaleCurves curves={snapshot.scale_curves} />}
+
           {showReport && run && (
             <ReportPanel run={run} refreshKey={snapshot.stats.done} />
           )}
@@ -91,12 +109,19 @@ export default function DashboardPage() {
               <div className="mb-md flex items-baseline justify-between">
                 <h2 className="text-heading-sm text-ink">Ranked results</h2>
                 <span className="text-caption-sm text-mute">
-                  {snapshot.stats.done} done · {snapshot.stats.running} running ·{" "}
-                  {snapshot.stats.queued} queued
+                  {snapshot.stats.done} done · {snapshot.stats.running} running
+                  {run.state !== "done" && ` · ${snapshot.stats.queued} queued`}
                   {snapshot.stats.failed > 0 && ` · ${snapshot.stats.failed} failed`}
                 </span>
               </div>
-              <RankedTable ideas={snapshot.ideas} now={now} />
+              <RankedTable
+                ideas={
+                  run.state === "done"
+                    ? snapshot.ideas.filter((idea) => idea.status !== "queued")
+                    : snapshot.ideas
+                }
+                now={now}
+              />
             </section>
           )}
         </div>
