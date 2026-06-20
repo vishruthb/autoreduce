@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { cancelRun, type Idea } from "@/lib/api";
+import { cancelRun, resetAll, type Idea } from "@/lib/api";
 import { useEventStream, useNow } from "@/lib/useEventStream";
 import { useConnection } from "@/lib/connection";
 import { PlannerBox } from "@/components/dashboard/PlannerBox";
@@ -37,13 +37,21 @@ export default function DashboardPage() {
         <p className="mt-section text-center text-body-sm text-mute">loading…</p>
       ) : (
         <div className="space-y-xl">
-          {active && run && (
-            <div className="flex justify-end">
+          {run && (
+            <div className="flex items-center justify-end gap-lg">
+              {active && (
+                <button
+                  onClick={() => cancelRun(run.id)}
+                  className="text-caption-sm text-body underline hover:text-ink"
+                >
+                  cancel run
+                </button>
+              )}
               <button
-                onClick={() => cancelRun(run.id)}
-                className="text-caption-sm text-body underline"
+                onClick={() => resetAll()}
+                className="text-caption-sm text-ink underline"
               >
-                cancel run
+                new run
               </button>
             </div>
           )}

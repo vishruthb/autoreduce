@@ -583,3 +583,22 @@ async def reaper_pass(heartbeat_timeout: float, harness_timeout: float) -> list[
     async with db.STATE_LOCK:
         return _reaper_txn(db.conn(), heartbeat_timeout=heartbeat_timeout,
                            harness_timeout=harness_timeout)
+
+
+def _reset_all_txn(conn: sqlite3.Connection) -> None:
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM ideas")
+        conn.execute("DELETE FROM runs")
+        conn.execute("UPDATE gpu_slots SET status='free', agent_id=NULL, "
+                     "idea_id=NULL, claimed_at=NULL, heartbeat_at=NULL")
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+async def reset_all() -> None:
+    """Wipe all runs + ideas and free every slot — a clean slate for a new run."""
+    async with db.STATE_LOCK:
+        _reset_all_txn(db.conn())

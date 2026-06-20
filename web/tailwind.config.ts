@@ -6,24 +6,27 @@ import type { Config } from "tailwindcss";
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
+    // Dark theme. Same token names, inverted values: dark canvas, light text,
+    // an elevated surface for the single "look here" panel, the CTA pill flips
+    // to light (its text uses `canvas`).
     colors: {
       transparent: "transparent",
       current: "currentColor",
       white: "#ffffff",
       black: "#000000",
-      primary: "#000000",
-      "ink-deep": "#090909",
-      canvas: "#ffffff",
-      "surface-soft": "#fafafa",
-      "surface-dark": "#171717",
-      hairline: "#e5e5e5",
-      "hairline-strong": "#d4d4d4",
-      ink: "#000000",
-      charcoal: "#525252",
-      body: "#737373",
-      mute: "#a3a3a3",
-      "on-dark": "#ffffff",
-      "on-dark-mute": "rgba(255,255,255,0.7)",
+      primary: "#f4f4f5",         // light CTA pill
+      "ink-deep": "#d4d4d8",      // pressed CTA
+      canvas: "#0b0b0c",          // page background
+      "surface-soft": "#18181b",  // pills, inputs, code backgrounds
+      "surface-dark": "#26262b",  // the single elevated "look here" panel
+      hairline: "#27272a",
+      "hairline-strong": "#3f3f46",
+      ink: "#f4f4f5",             // headlines / strong text
+      charcoal: "#a8a8b2",        // secondary text
+      body: "#c9c9d2",            // body paragraph text
+      mute: "#71717a",            // lowest emphasis
+      "on-dark": "#fafafa",       // text on the elevated panel
+      "on-dark-mute": "rgba(255,255,255,0.65)",
       "term-red": "#ff5f56",
       "term-yellow": "#ffbd2e",
       "term-green": "#27c93f",

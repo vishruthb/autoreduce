@@ -3,8 +3,8 @@ import type { ButtonHTMLAttributes } from "react";
 type Variant = "primary" | "secondary" | "soft" | "on-dark";
 
 const VARIANTS: Record<Variant, string> = {
-  // the universal black pill
-  primary: "bg-primary text-on-dark active:bg-ink-deep",
+  // the universal CTA pill (light on dark; dark text)
+  primary: "bg-primary text-canvas active:bg-ink-deep",
   // outline on light canvas
   secondary: "bg-canvas text-ink border border-hairline-strong",
   // low-emphasis soft pill

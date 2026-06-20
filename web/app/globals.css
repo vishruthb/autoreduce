@@ -3,15 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --canvas: #ffffff;
-  --surface-soft: #fafafa;
-  --surface-dark: #171717;
-  --hairline: #e5e5e5;
-  --hairline-strong: #d4d4d4;
-  --ink: #000000;
-  --charcoal: #525252;
-  --body: #737373;
-  --mute: #a3a3a3;
+  color-scheme: dark;
+  --canvas: #0b0b0c;
+  --surface-soft: #18181b;
+  --surface-dark: #26262b;
+  --hairline: #27272a;
+  --hairline-strong: #3f3f46;
+  --ink: #f4f4f5;
+  --charcoal: #a8a8b2;
+  --body: #c9c9d2;
+  --mute: #71717a;
 }
 
 html,

@@ -54,6 +54,10 @@ class Settings:
     agent_max_budget_usd: float = float(
         os.environ.get("AUTOREDUCE_AGENT_MAX_BUDGET_USD", "0.50"))
 
+    # optional: append every planner LLM call (digest in, hypotheses out) to this
+    # JSONL file. Off by default → zero behavior change; instrumentation only.
+    planner_log: str | None = os.environ.get("AUTOREDUCE_PLANNER_LOG") or None
+
     # timeouts (seconds)
     harness_timeout: int = _int("AUTOREDUCE_HARNESS_TIMEOUT", 60)
     heartbeat_timeout: int = _int("AUTOREDUCE_HEARTBEAT_TIMEOUT", 8)

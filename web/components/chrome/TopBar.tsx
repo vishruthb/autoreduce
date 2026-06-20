@@ -61,7 +61,7 @@ export function TopBar() {
               </div>
               <Link
                 href="/dashboard"
-                className="inline-flex h-btn items-center rounded-full bg-primary px-[20px] text-button-md font-medium text-on-dark active:bg-ink-deep"
+                className="inline-flex h-btn items-center rounded-full bg-primary px-[20px] text-button-md font-medium text-canvas active:bg-ink-deep"
               >
                 Open dashboard →
               </Link>

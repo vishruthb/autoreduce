@@ -190,6 +190,14 @@ async def create_run(body: RunBody) -> dict[str, Any]:
     return {"run_id": run_id}
 
 
+@router.post("/reset")
+async def reset() -> dict[str, Any]:
+    """Clear all runs + ideas (and free slots) so a fresh run starts clean."""
+    await store.reset_all()
+    events.broker.publish_snapshot()
+    return {"ok": True}
+
+
 @router.post("/runs/{run_id}/cancel")
 async def cancel_run(run_id: int) -> dict[str, Any]:
     async with db.STATE_LOCK:

@@ -142,3 +142,7 @@ export async function startRun(
 export async function cancelRun(runId: number): Promise<void> {
   await fetch(`${API_BASE}/runs/${runId}/cancel`, { method: "POST" });
 }
+
+export async function resetAll(): Promise<void> {
+  await fetch(`${API_BASE}/reset`, { method: "POST" });
+}

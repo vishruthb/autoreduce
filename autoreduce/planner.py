@@ -11,12 +11,39 @@ budget gate and run-state transitions live in the store.
 from __future__ import annotations
 
 import asyncio
+import json
+import time
 from typing import Any
 
 from . import bench, db, events, llm, runs, store
 from .config import settings
 
 PLAN_INTERVAL = 1.0
+
+# instrumentation only (gated by settings.planner_log); does not affect proposals
+_batch = 0
+
+
+def _log_proposal(*, batch: int, kind: str, run, digest: dict[str, Any],
+                  ideas: list[dict[str, Any]]) -> None:
+    if not settings.planner_log:
+        return
+    try:
+        entry = {
+            "ts": time.time(),
+            "batch": batch,
+            "kind": kind,                       # "seed" | "reseed"
+            "run_id": run["id"],
+            "prompt": run["prompt"],
+            "digest_in": digest,                # top_ideas / tried_hypotheses / followups / queue_depth
+            "hypotheses_out": [
+                {"text": i.get("hypothesis"), "origin": i.get("origin")} for i in ideas
+            ],
+        }
+        with open(settings.planner_log, "a") as fh:
+            fh.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass
 
 
 async def planner_loop(stop: asyncio.Event) -> None:
@@ -94,6 +121,9 @@ async def _start_run(pending) -> None:
                            reasoning=f"Seeding ideas for: {task.domain_blurb[:80]}…",
                            exploring_region=task.objective_name)
         ideas = await _propose(task, _empty_digest(), 2 * settings.pool_size, seed=True)
+        global _batch
+        _batch = 0
+        _log_proposal(batch=0, kind="seed", run=pending, digest=_empty_digest(), ideas=ideas)
         if await _insert(run_id, ideas) == 0:
             await _db(lambda c: store.set_run_state(
                 c, run_id, "failed", error="planner produced no valid seed ideas"))
@@ -123,6 +153,9 @@ async def _reseed(run, digest) -> None:
         ideas = await _propose(task, digest, n, seed=False)
     except llm.LLMError:
         return  # transient; try again next tick
+    global _batch
+    _batch += 1
+    _log_proposal(batch=_batch, kind="reseed", run=run, digest=digest, ideas=ideas)
     await _insert(run_id, ideas)
     await _set_planner(run_id, status="waiting")
 
