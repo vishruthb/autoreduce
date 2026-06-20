@@ -1,145 +1,357 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Mascot } from "@/components/chrome/Mascot";
-import { TrafficLights } from "@/components/ui/TrafficLights";
 import { InstallSnippet } from "@/components/landing/InstallSnippet";
+import { TrafficLights } from "@/components/ui/TrafficLights";
 
 export const metadata: Metadata = {
-  title: "How it works — autoreduce",
+  title: "Docs - autoreduce",
   description:
-    "How autoreduce turns a plain-language goal into verified results: a planner " +
-    "proposes hypotheses, a pool of agents implements and benchmarks each one, " +
-    "and the system measures everything.",
+    "How autoreduce runs autonomous optimization: planners create ideas, agents write methods, " +
+    "sealed benchmarks measure results, and the decoupled scheduler allocates GPU work.",
 };
 
-const STEPS: { title: string; body: string }[] = [
+const PIPELINE = [
   {
-    title: "You describe a goal",
-    body:
-      "In plain language, however vague — “make the data loader faster”, “reduce " +
-      "p99 latency”, “lift accepted tokens per call”. There's no form to fill in " +
-      "and no search space to define; the goal is the whole input.",
+    title: "Planner",
+    body: "Reads the goal and digest, then seeds hypotheses and scale probes.",
   },
   {
-    title: "The planner proposes hypotheses",
-    body:
-      "A planner reads your goal and the results so far, then proposes a batch of " +
-      "distinct, implementable methods — some refining the current best (exploit), " +
-      "some opening new directions (explore). It keeps the queue full as results " +
-      "land, and escalates exploration when the frontier stalls.",
+    title: "Idea queue",
+    body: "Stores algorithmic hypotheses separately from measurements.",
   },
   {
-    title: "A pool of agents builds and benchmarks each one",
-    body:
-      "Every hypothesis goes to a worker: a coding agent that writes a real method, " +
-      "runs it on the benchmark, reads the score, and iterates until it beats the " +
-      "baseline. Workers run in parallel across the pool, each sandboxed to its own " +
-      "workspace — they can write a method, never touch the measurement.",
+    title: "Agent layer",
+    body: "Coding agents think, edit, and request measurements without owning GPUs.",
   },
   {
-    title: "You get a ranked report",
-    body:
-      "Results stream into a best-first table you can expand to watch what each " +
-      "agent is doing. When the budget is spent, you get a report — every method, " +
-      "its verified score, and what it changed — readable on screen and downloadable " +
-      "as markdown.",
+    title: "Experiment queue",
+    body: "Each benchmark request becomes an experiment with a resource and workload shape.",
+  },
+  {
+    title: "GPU scheduler",
+    body: "Atomically leases GPU bundles and launches benchmark runners when jobs fit.",
+  },
+  {
+    title: "Results digest",
+    body: "Verified metrics, scale curves, followups, and queue pressure feed the planner.",
   },
 ];
 
-const LOOP: { text: string; tone: "mute" | "ink" }[] = [
-  { text: "$ python -m autoreduce", tone: "ink" },
-  { text: "[planner]  goal: “make the data loader faster”  →  8 hypotheses", tone: "mute" },
-  { text: "[W0]  write method · benchmark · 1.58×   →  submit ★ best", tone: "ink" },
-  { text: "[W1]  write method · benchmark · explore (running 0:06)", tone: "ink" },
-  { text: "[W2]  write method · benchmark · 1.42×   →  submit", tone: "ink" },
-  { text: "[system]  measured 23 / 40 · best 1.58×", tone: "mute" },
-  { text: "[report]  ranked findings ready          →  download .md", tone: "mute" },
+const MODES = [
+  {
+    name: "Coupled",
+    command: "AUTOREDUCE_SCHEDULER_MODE=coupled",
+    body:
+      "The original safe path. One worker claims one idea and one GPU slot, runs the agent, " +
+      "runs the sealed benchmark, and reports the result. This keeps the current demo stable.",
+  },
+  {
+    name: "Decoupled",
+    command: "AUTOREDUCE_SCHEDULER_MODE=decoupled",
+    body:
+      "The elastic path. Agents scale independently from GPU execution. Benchmark jobs own GPUs " +
+      "only while measured work is running, so one GPU can support multiple active agents and a " +
+      "larger pool can mix wide search with 2/4/8 GPU probes.",
+  },
+];
+
+const IMPLEMENTATION = [
+  ["autoreduce/db.py", "Creates runs, ideas, gpu_slots, experiments, agent_leases, and gpu_leases."],
+  ["autoreduce/store.py", "Owns transactional claims, result reporting, leases, scale curves, and resource digests."],
+  ["autoreduce/worker.py", "Runs the agent side: claim an idea, prepare a workspace, write method.py, request benchmarks."],
+  ["autoreduce/benchmark_worker.py", "Runs the measurement side: claim an experiment bundle, set CUDA_VISIBLE_DEVICES, run the sealed benchmark."],
+  ["autoreduce/scheduler.py", "Computes target agent count and keeps the decoupled agent and benchmark pools alive."],
+  ["autoreduce/planner.py", "Keeps the queue full and emits scale probes when an idea has promising signal."],
+  ["web/app/dashboard/page.tsx", "Shows active agents, benchmark queue, GPU bundle usage, ranked results, and scale curves."],
+];
+
+const SOURCES = [
+  {
+    label: "The AI Scientist",
+    href: "https://sakana.ai/ai-scientist/",
+    body:
+      "A reference point for end-to-end automated research loops: idea generation, experiment execution, analysis, and writeup.",
+  },
+  {
+    label: "The AI Scientist Nature update",
+    href: "https://sakana.ai/ai-scientist-nature/",
+    body:
+      "Shows the broader direction of autonomous scientific discovery and tree-like exploration over research ideas.",
+  },
+  {
+    label: "Modal autoscaling docs",
+    href: "https://modal.com/docs/guide/scale",
+    body:
+      "The infrastructure analogy for this design: scale compute pools based on queued work and idle capacity.",
+  },
+  {
+    label: "Modal GPU docs",
+    href: "https://modal.com/docs/guide/gpu",
+    body:
+      "Useful background for GPU-backed workloads, resource declarations, and elastic execution environments.",
+  },
+  {
+    label: "Claude Agent SDK for Python",
+    href: "https://github.com/anthropics/claude-agent-sdk-python",
+    body:
+      "The agent execution layer used by autoreduce workers when running real coding sessions.",
+  },
+];
+
+const ARCHITECTURE = [
+  "Planner",
+  "  -> idea queue",
+  "  -> agent workers",
+  "  -> benchmark request queue",
+  "  -> GPU bundle scheduler",
+  "  -> benchmark workers",
+  "  -> sealed metrics + scale curves",
+  "  -> planner digest",
 ];
 
 export default function HowItWorks() {
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-56px)] max-w-content flex-col px-lg">
+    <div className="mx-auto flex min-h-[calc(100vh-56px)] max-w-dash flex-col px-lg">
       <main className="flex-1 pb-section pt-xl">
-        {/* hero */}
-        <section className="flex flex-col items-center text-center">
-          <div className="text-ink">
-            <Mascot size={72} />
+        <section className="grid gap-xl lg:grid-cols-[minmax(0,1fr)_380px] lg:items-center">
+          <div>
+            <div className="text-ink">
+              <Mascot size={72} />
+            </div>
+            <p className="mt-md font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+              autoreduce docs
+            </p>
+            <h1 className="mt-sm max-w-[760px] text-display-xl text-ink">
+              Autonomous optimization with sealed measurement and elastic GPU scheduling.
+            </h1>
+            <p className="mt-md max-w-[700px] text-body-md text-body">
+              Autoreduce takes a goal like "increase accepted tokens per call", generates
+              implementation hypotheses, gives each one to a coding agent, and ranks only the
+              results that pass a sealed benchmark. The current implementation keeps the original
+              coupled worker mode, then adds a decoupled mode where agents and GPU jobs scale as
+              separate layers.
+            </p>
+            <div className="mt-lg flex flex-wrap gap-sm">
+              <Link
+                href="/dashboard"
+                className="inline-flex h-btn items-center rounded-full bg-primary px-[20px] text-button-md font-medium text-canvas active:bg-ink-deep"
+              >
+                Open dashboard
+              </Link>
+              <a
+                href="https://github.com/vishruthb/autoreduce"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-btn items-center rounded-full border border-hairline-strong px-[20px] text-button-md font-medium text-ink hover:bg-surface-soft"
+              >
+                GitHub
+              </a>
+            </div>
           </div>
-          <h1 className="mt-lg text-display-xl text-ink">How autoreduce works</h1>
-          <p className="mt-md max-w-[560px] text-body-md text-body">
-            One planner, a pool of coding agents, and a sealed benchmark. You bring a
-            goal; it runs the experiments and hands you results that are measured, not
-            claimed.
-          </p>
-        </section>
 
-        {/* the loop, as a terminal preview */}
-        <section className="mt-section">
           <div className="rounded-lg border border-hairline bg-canvas p-lg">
             <TrafficLights />
             <pre className="mt-md overflow-x-auto font-mono text-code-sm leading-relaxed">
-              {LOOP.map((l, i) => (
-                <div key={i} className={l.tone === "ink" ? "text-ink" : "text-mute"}>
-                  {l.text}
+              {ARCHITECTURE.map((line, index) => (
+                <div key={line} className={index === 0 ? "text-ink" : "text-body"}>
+                  {line}
                 </div>
               ))}
             </pre>
           </div>
         </section>
 
-        {/* the four steps, on a pipeline rail */}
         <section className="mt-section">
-          <h2 className="text-display-lg text-ink">The loop</h2>
-          <ol className="relative mt-xl space-y-xxl border-l border-hairline pl-xl">
-            {STEPS.map((s, i) => (
-              <li key={i} className="relative">
-                <span className="absolute left-[-24px] top-0 flex h-[30px] w-[30px] -translate-x-1/2 items-center justify-center rounded-full border border-hairline-strong bg-canvas font-mono text-code-sm text-ink">
-                  {i + 1}
-                </span>
-                <h3 className="text-heading-md text-ink">{s.title}</h3>
-                <p className="mt-xs max-w-[600px] text-body-md text-body">{s.body}</p>
+          <div className="rounded-lg bg-surface-dark p-xxl text-on-dark">
+            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-on-dark-mute">
+              core idea
+            </p>
+            <h2 className="mt-sm text-heading-lg text-on-dark">
+              Agents do not own GPUs. Benchmarks do.
+            </h2>
+            <p className="mt-md max-w-[760px] text-body-md text-on-dark-mute">
+              The original system tied one worker, one agent session, one idea, and one GPU slot
+              together. That is simple and correct, but it leaves expensive GPUs idle while agents
+              think, wait on APIs, and edit files. Decoupled mode keeps the sealed benchmark path
+              but moves GPU ownership to benchmark jobs. With 1 GPU, several agents can prepare work
+              while one measurement runs. With 4 or 8 GPUs, the scheduler can pack many 1-GPU tests
+              or temporarily reserve 2/4/8 GPU bundles for scale probes.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-section">
+          <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                architecture
+              </p>
+              <h2 className="mt-sm text-display-lg text-ink">The execution loop</h2>
+            </div>
+            <p className="max-w-[460px] text-body-sm text-body">
+              Ideas are hypotheses. Experiments are measurements. Splitting those two concepts is
+              what lets the planner build scale curves instead of just a flat ranked table.
+            </p>
+          </div>
+          <ol className="mt-xl grid gap-md md:grid-cols-2 lg:grid-cols-3">
+            {PIPELINE.map((step, index) => (
+              <li key={step.title} className="rounded-lg border border-hairline bg-canvas p-lg">
+                <div className="flex items-center gap-sm">
+                  <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-hairline-strong font-mono text-code-sm text-ink">
+                    {index + 1}
+                  </span>
+                  <h3 className="text-heading-sm text-ink">{step.title}</h3>
+                </div>
+                <p className="mt-md text-body-sm text-body">{step.body}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        {/* the single inverted "look here" surface: the trust guarantee */}
+        <section className="mt-section grid gap-md lg:grid-cols-2">
+          {MODES.map((mode) => (
+            <article key={mode.name} className="rounded-lg border border-hairline bg-canvas p-xl">
+              <h2 className="text-heading-md text-ink">{mode.name} mode</h2>
+              <code className="mt-md block overflow-x-auto rounded-md bg-surface-soft px-md py-sm font-mono text-code-sm text-charcoal">
+                {mode.command}
+              </code>
+              <p className="mt-md text-body-sm text-body">{mode.body}</p>
+            </article>
+          ))}
+        </section>
+
         <section className="mt-section">
-          <div className="rounded-lg bg-surface-dark p-xxl text-on-dark">
-            <h2 className="text-heading-lg text-on-dark">Measured, not claimed.</h2>
-            <p className="mt-md max-w-[620px] text-body-md text-on-dark-mute">
-              Agents write the method; the system owns the measurement. The reported
-              score always comes from the system running the sealed benchmark on the
-              final method — never from anything the agent says it achieved. The agent
-              is boxed into its workspace and cannot read or change the benchmark, so a
-              high score has to be earned. That separation is what makes the ranking
-              worth trusting.
+          <div className="grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
+            <div>
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                implementation
+              </p>
+              <h2 className="mt-sm text-display-lg text-ink">What changed in code</h2>
+              <p className="mt-md text-body-md text-body">
+                The migration is incremental. Coupled endpoints and worker behavior remain in
+                place. Decoupled mode adds vocabulary, tables, leases, and workers around the
+                original sealed benchmark design.
+              </p>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+              {IMPLEMENTATION.map(([file, body], index) => (
+                <div
+                  key={file}
+                  className={
+                    index === 0
+                      ? "grid gap-xs p-md md:grid-cols-[230px_minmax(0,1fr)]"
+                      : "grid gap-xs border-t border-hairline p-md md:grid-cols-[230px_minmax(0,1fr)]"
+                  }
+                >
+                  <code className="font-mono text-code-sm text-ink">{file}</code>
+                  <p className="text-body-sm text-body">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-section grid gap-md lg:grid-cols-3">
+          <div className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h2 className="text-heading-md text-ink">1 GPU</h2>
+            <p className="mt-md text-body-sm text-body">
+              Parallel thinking, serial measurement. Two to four agents can prepare candidates
+              while the benchmark queue runs one GPU job at a time.
+            </p>
+          </div>
+          <div className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h2 className="text-heading-md text-ink">4 GPUs</h2>
+            <p className="mt-md text-body-sm text-body">
+              The demo path. The scheduler usually runs broad 1-GPU tests, then reserves a 2-GPU or
+              4-GPU bundle when a promising idea deserves a scale probe.
+            </p>
+          </div>
+          <div className="rounded-lg border border-hairline bg-canvas p-xl">
+            <h2 className="text-heading-md text-ink">8 GPUs</h2>
+            <p className="mt-md text-body-sm text-body">
+              Wide, mixed, probe, and validate modes become visible: 8 one-GPU jobs, 4 one-GPU jobs
+              plus a 4-GPU probe, two 4-GPU probes, or one 8-GPU validation.
             </p>
           </div>
         </section>
 
-        {/* close: install + CTA */}
+        <section className="mt-section">
+          <div className="rounded-lg border border-hairline bg-canvas p-xl">
+            <div className="grid gap-lg lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+              <div>
+                <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                  trust boundary
+                </p>
+                <h2 className="mt-sm text-heading-lg text-ink">Measured, not claimed.</h2>
+                <p className="mt-md text-body-md text-body">
+                  Agents write methods and can ask for feedback, but the score comes from the
+                  system running the sealed benchmark against the final method. The benchmark is
+                  outside the writable workspace. In decoupled mode, even interactive benchmark
+                  calls go through the experiment queue, so the GPU scheduler controls when and
+                  where measurement happens.
+                </p>
+              </div>
+              <div className="rounded-md bg-surface-soft p-md">
+                <p className="font-mono text-code-sm text-charcoal">
+                  AUTOREDUCE_POOL_SIZE=4
+                  <br />
+                  AUTOREDUCE_SCHEDULER_MODE=decoupled
+                  <br />
+                  AUTOREDUCE_AGENT_AUTOSCALE=1
+                  <br />
+                  AUTOREDUCE_MAX_AGENTS=8
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-section">
+          <div className="flex flex-col justify-between gap-md md:flex-row md:items-end">
+            <div>
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                references
+              </p>
+              <h2 className="mt-sm text-display-lg text-ink">Relevant sources</h2>
+            </div>
+            <p className="max-w-[500px] text-body-sm text-body">
+              These are not dependencies. They are the closest public reference points for the
+              research-agent loop and elastic compute model behind the pitch.
+            </p>
+          </div>
+          <div className="mt-xl grid gap-md md:grid-cols-2">
+            {SOURCES.map((source) => (
+              <a
+                key={source.href}
+                href={source.href}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-hairline bg-canvas p-lg hover:border-hairline-strong hover:bg-surface-soft"
+              >
+                <h3 className="text-heading-sm text-ink">{source.label}</h3>
+                <p className="mt-sm text-body-sm text-body">{source.body}</p>
+                <p className="mt-md overflow-hidden text-ellipsis whitespace-nowrap font-mono text-code-sm text-mute">
+                  {source.href}
+                </p>
+              </a>
+            ))}
+          </div>
+        </section>
+
         <section className="mt-section flex flex-col items-center text-center">
-          <h2 className="text-heading-lg text-ink">Point it at a goal.</h2>
-          <p className="mt-xs max-w-[480px] text-body-md text-body">
-            Run it locally and open the dashboard — describe what you want to improve
-            and watch the pool go.
+          <h2 className="text-heading-lg text-ink">Run the local loop.</h2>
+          <p className="mt-xs max-w-[560px] text-body-md text-body">
+            Start the app, open the dashboard, and watch ideas, agents, benchmark jobs, GPU leases,
+            and scale curves update from the same run.
           </p>
           <div className="mt-lg flex w-full justify-center">
             <InstallSnippet command="python -m autoreduce" />
           </div>
-          <Link
-            href="/dashboard"
-            className="mt-lg inline-flex h-btn items-center rounded-full bg-primary px-[20px] text-button-md font-medium text-canvas active:bg-ink-deep"
-          >
-            Open the dashboard →
-          </Link>
         </section>
       </main>
 
-      <footer className="py-lg text-center text-caption-sm text-mute">
-        © 2026 autoreduce
-      </footer>
+      <footer className="py-lg text-center text-caption-sm text-mute">© 2026 autoreduce</footer>
     </div>
   );
 }
