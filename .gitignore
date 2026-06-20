@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# autoreduce runtime
+autoreduce.db
+autoreduce.db-wal
+autoreduce.db-shm
+run/
+
+# env / secrets
+.env
+.env.local
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+
+# OS
+.DS_Store

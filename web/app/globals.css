@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --canvas: #ffffff;
+  --surface-soft: #fafafa;
+  --surface-dark: #171717;
+  --hairline: #e5e5e5;
+  --hairline-strong: #d4d4d4;
+  --ink: #000000;
+  --charcoal: #525252;
+  --body: #737373;
+  --mute: #a3a3a3;
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The ONLY animation in the system: a slow opacity breath on a 6px dot, the
+   minimum viable "alive" cue. Everything else stays flat. */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.dot-running {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot-running {
+    animation: none;
+  }
+}
+
+/* respect the flat aesthetic: no native number-input spinners, etc. */
+* {
+  box-shadow: none;
+}
