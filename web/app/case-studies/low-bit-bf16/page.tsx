@@ -206,8 +206,8 @@ export default function LowBitBf16CaseStudyPage() {
             </p>
             <div className="mt-lg rounded-lg border border-hairline-strong bg-surface-soft p-md">
               <p className="text-body-sm text-body">
-                The system did not just find a better method. It found the GPU regime where scaling
-                stopped paying off.
+                The useful result was not maxing out all eight GPUs. The planner found that
+                quality improved through four GPUs, then verifier cost started to dominate.
               </p>
             </div>
           </div>
@@ -225,9 +225,9 @@ export default function LowBitBf16CaseStudyPage() {
         </section>
 
         <section className="mt-section grid gap-md md:grid-cols-3">
-          <MetricCard label="GPU pool" value="8 H100" body="The run starts with eight H100 slots available to the scheduler." />
+          <MetricCard label="baseline to beat" value="0.704" body="BF16 best-of-16 under the equal GPU-second reference." />
           <MetricCard label="best reward" value="0.771" body="The best reward came from 4-GPU VLM top-k, but verifier cost dominated." />
-          <MetricCard label="planner decision" value="4 of 8" body="The 8-GPU probe flattened, so the planner returned capacity to search." />
+          <MetricCard label="selected point" value="4 GPUs" body="The 8-GPU probe barely moved reward, so extra slots returned to search." />
         </section>
 
         <section className="mt-section grid gap-xl lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -271,23 +271,6 @@ export default function LowBitBf16CaseStudyPage() {
             <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-code-sm leading-relaxed text-body">
               {PROMPT.join("\n")}
             </pre>
-          </div>
-        </section>
-
-        <section className="mt-section">
-          <div className="rounded-lg bg-surface-dark p-xxl text-on-dark">
-            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-on-dark-mute">
-              what autoreduce found
-            </p>
-            <h2 className="mt-sm text-heading-lg text-on-dark">
-              Low-bit candidate search beat stronger BF16 best-of-N baselines at lower compute.
-            </h2>
-            <p className="mt-md max-w-[860px] text-body-md text-on-dark-mute">
-              The best one-GPU policy improved reward by 8.5% over BF16 best-of-8. The adaptive
-              multi-GPU policy improved reward by 8.8% over BF16 best-of-16 while using less than
-              the full BF16 sampling budget. Most gains appeared by 4 GPUs; 8 GPUs added cost
-              without meaningful reward improvement.
-            </p>
           </div>
         </section>
 
@@ -368,46 +351,6 @@ export default function LowBitBf16CaseStudyPage() {
               <h2 className="mt-sm text-heading-lg text-ink">Best point by method</h2>
             </div>
             <DataTable rows={SCALE_SUMMARY} headers={["Method", "1 GPU", "2 GPUs", "4 GPUs", "8 GPUs", "Best point"]} />
-          </div>
-        </section>
-
-        <section className="mt-section grid gap-md lg:grid-cols-3">
-          <article className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">FP4 search + BF16 top-8</h3>
-            <p className="mt-md text-body-sm text-body">
-              Quality improved from 1 to 4 GPUs as candidate generation parallelized. The 8-GPU
-              point barely moved reward and doubled GPU-seconds.
-            </p>
-          </article>
-          <article className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">Adaptive prompt difficulty</h3>
-            <p className="mt-md text-body-sm text-body">
-              Best overall deployment policy. It spent more candidate budget only on hard prompts,
-              then used 4 GPUs for high-quality mode and 2 GPUs for balanced mode.
-            </p>
-          </article>
-          <article className="rounded-lg border border-hairline bg-canvas p-xl">
-            <h3 className="text-heading-md text-ink">Cheap-first VLM top-k</h3>
-            <p className="mt-md text-body-sm text-body">
-              Highest reward, but verifier cost dominated at scale. The next action is verifier
-              batching or a latent verifier before spending more GPUs.
-            </p>
-          </article>
-        </section>
-
-        <section className="mt-section">
-          <div className="rounded-lg bg-surface-dark p-xxl text-on-dark">
-            <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-on-dark-mute">
-              punchline
-            </p>
-            <h2 className="mt-sm text-heading-lg text-on-dark">
-              Most autoresearch systems produce leaderboards. Autoreduce produces scale curves.
-            </h2>
-            <p className="mt-md max-w-[820px] text-body-md text-on-dark-mute">
-              A method is not good or bad in isolation. It is good under a resource regime. The
-              planner decides what information is worth buying next, the scheduler decides how to
-              buy it, and the sealed benchmark decides whether it worked.
-            </p>
           </div>
         </section>
 
