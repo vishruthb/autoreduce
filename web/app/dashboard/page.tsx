@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const showControls = run == null;
   const showReport =
     run != null && (run.state === "done" || run.state === "draining");
+  const failed = run != null && run.state === "failed";
   const busy = snapshot?.slots.filter((s) => s.status === "busy").length ?? 0;
 
   return (
@@ -68,6 +69,18 @@ export default function DashboardPage() {
           {planner && run && active && <PlannerBox planner={planner} run={run} />}
 
           {run && <TopologyPanel run={run} resources={snapshot.resources} />}
+
+          {failed && (
+            <section className="rounded-lg border border-hairline bg-canvas p-xl">
+              <p className="font-mono text-code-sm uppercase tracking-[0.16em] text-mute">
+                run failed
+              </p>
+              <h2 className="mt-sm text-heading-sm text-ink">Planner could not start the run</h2>
+              <p className="mt-md whitespace-pre-wrap text-body-sm text-body">
+                {run.error ?? "The backend marked this run failed without an error message."}
+              </p>
+            </section>
+          )}
 
           {active && <ResourcePanel resources={snapshot.resources} />}
 
